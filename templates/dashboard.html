@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pastillero — Panel de Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0a0e12;
+    --surface:  #111820;
+    --border:   #1e2d3d;
+    --accent:   #00d4aa;
+    --accent2:  #0091ff;
+    --warn:     #ff6b35;
+    --danger:   #ff2d55;
+    --text:     #e2eaf4;
+    --muted:    #5a7a99;
+    --online:   #00d4aa;
+    --offline:  #5a7a99;
+    --alarm:    #ff6b35;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-sub { font-size: 0.7rem; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+  .header-right {
+    display: flex; align-items: center; gap: 20px;
+  }
+  .server-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .refresh-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    transition: all .2s;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Layout ── */
+  main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Stats bar ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .stat-card.total::before  { background: var(--accent2); }
+  .stat-card.online::before { background: var(--online); }
+  .stat-card.offline::before{ background: var(--offline); }
+  .stat-card.alarm::before  { background: var(--alarm);
+    animation: pulse-bar 1s ease-in-out infinite; }
+
+  @keyframes pulse-bar {
+    0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+
+  .stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-family: 'DM Mono', monospace; }
+  .stat-value { font-size: 2.2rem; font-weight: 800; margin-top: 6px; line-height: 1; }
+  .stat-card.online .stat-value  { color: var(--online); }
+  .stat-card.offline .stat-value { color: var(--muted); }
+  .stat-card.alarm .stat-value   { color: var(--alarm); }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+  .tab {
+    padding: 10px 20px;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    transition: all .2s;
+    position: relative; bottom: -1px;
+  }
+  .tab.active {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+    border-bottom-color: var(--surface);
+  }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Devices table ── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-title { font-size: 1rem; font-weight: 600; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+  .badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .badge.online  { background: rgba(0,212,170,.1);  color: var(--online);  }
+  .badge.online::before  { background: var(--online); box-shadow: 0 0 6px var(--online); }
+  .badge.offline { background: rgba(90,122,153,.1); color: var(--muted);   }
+  .badge.offline::before { background: var(--muted); }
+  .badge.alarm   { background: rgba(255,107,53,.1);  color: var(--alarm);   animation: blink .8s step-end infinite; }
+  .badge.alarm::before   { background: var(--alarm); box-shadow: 0 0 6px var(--alarm); }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .mono { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--muted); }
+  .version-tag {
+    background: rgba(0,145,255,.1);
+    color: var(--accent2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+  }
+
+  .actions { display: flex; gap: 8px; }
+  .btn-sm {
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    transition: all .15s;
+  }
+  .btn-sm:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn-sm.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .btn-sm.warn:hover   { border-color: var(--warn);   color: var(--warn); }
+
+  /* ── Events log ── */
+  .events-list { display: flex; flex-direction: column; gap: 8px; }
+  .event-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .event-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .event-body { flex: 1; }
+  .event-type  { font-size: 0.8rem; font-weight: 600; }
+  .event-meta  { font-size: 0.72rem; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 3px; }
+  .event-time  { font-size: 0.7rem; color: var(--muted); font-family: 'DM Mono', monospace; flex-shrink: 0; }
+
+  /* ── OTA panel ── */
+  .ota-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+  }
+  .card-title { font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-family: 'DM Mono', monospace; }
+  input[type=text], input[type=file], textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border .2s;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  input[type=file] { padding: 8px 14px; cursor: pointer; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 7px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all .2s;
+    width: 100%;
+  }
+  .btn-primary:hover { background: #00b890; }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+  .firmware-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .firmware-row:last-child { border-bottom: none; }
+  .fw-version { font-family: 'DM Mono', monospace; font-size: 0.85rem; }
+  .fw-stable {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+  }
+  .fw-stable.yes { background: rgba(0,212,170,.1); color: var(--accent); }
+  .fw-stable.no  { background: rgba(90,122,153,.1); color: var(--muted); }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-text { font-size: 0.9rem; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-size: 0.85rem;
+    max-width: 300px;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s;
+    z-index: 999;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--accent); }
+  #toast.error   { border-color: var(--danger); }
+
+  /* ── Loading skeleton ── */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+    height: 16px;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  @media (max-width: 768px) {
+    main { padding: 16px; }
+    .ota-panel { grid-template-columns: 1fr; }
+    header { padding: 16px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">💊</div>
+    <div>
+      <div class="logo-text">Pastillero</div>
+      <div class="logo-sub">PANEL DE CONTROL</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="server-time" id="serverTime">--:--:--</span>
+    <button class="refresh-btn" onclick="loadAll()">↻ Actualizar</button>
+  </div>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card total">
+      <div class="stat-label">Total</div>
+      <div class="stat-value" id="statTotal">—</div>
+    </div>
+    <div class="stat-card online">
+      <div class="stat-label">Online</div>
+      <div class="stat-value" id="statOnline">—</div>
+    </div>
+    <div class="stat-card offline">
+      <div class="stat-label">Offline</div>
+      <div class="stat-value" id="statOffline">—</div>
+    </div>
+    <div class="stat-card alarm">
+      <div class="stat-label">Alarma</div>
+      <div class="stat-value" id="statAlarm">—</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('devices')">Dispositivos</div>
+    <div class="tab" onclick="showTab('events')">Historial</div>
+    <div class="tab" onclick="showTab('ota')">OTA / Firmware</div>
+  </div>
+
+  <!-- Tab: Devices -->
+  <div class="tab-content active" id="tab-devices">
+    <div class="section-header">
+      <span class="section-title">Dispositivos registrados</span>
+    </div>
+    <div id="devicesContainer">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Estado</th>
+            <th>IP</th>
+            <th>Firmware</th>
+            <th>Último contacto</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="devicesBody">
+          <tr><td colspan="6"><div class="skeleton" style="margin:20px 0"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab: Events -->
+  <div class="tab-content" id="tab-events">
+    <div class="section-header">
+      <span class="section-title">Últimos eventos</span>
+    </div>
+    <div id="eventsList" class="events-list">
+      <div class="skeleton" style="height:60px;border-radius:8px"></div>
+      <div class="skeleton" style="height:60px;border-radius:8px;opacity:.6"></div>
+      <div class="skeleton" style="height:60px;border-radius:8px;opacity:.3"></div>
+    </div>
+  </div>
+
+  <!-- Tab: OTA -->
+  <div class="tab-content" id="tab-ota">
+    <div class="ota-panel">
+      <div class="card">
+        <div class="card-title">Subir nuevo firmware</div>
+        <div class="form-group">
+          <label>VERSIÓN (ej: 1.2.0)</label>
+          <input type="text" id="fwVersion" placeholder="1.2.0">
+        </div>
+        <div class="form-group">
+          <label>ARCHIVO .BIN</label>
+          <input type="file" id="fwFile" accept=".bin">
+        </div>
+        <div class="form-group">
+          <label>NOTAS (opcional)</label>
+          <textarea id="fwNotes" rows="3" placeholder="Qué cambió en esta versión..."></textarea>
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="fwStable" checked style="width:auto">
+          <label style="margin:0;cursor:pointer" for="fwStable">Marcar como versión estable (se distribuye a dispositivos)</label>
+        </div>
+        <button class="btn-primary" id="uploadBtn" onclick="uploadFirmware()">Subir firmware</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Versiones disponibles</div>
+        <div id="firmwareList">
+          <div class="skeleton" style="height:40px;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:40px;margin-bottom:8px;opacity:.6"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const EVENT_ICONS = {
+  heartbeat: { icon: '🏓', color: 'rgba(0,145,255,.15)' },
+  alarm_triggered: { icon: '🔔', color: 'rgba(255,107,53,.15)' },
+  alarm_ack: { icon: '✅', color: 'rgba(0,212,170,.15)' },
+  dose_taken: { icon: '💊', color: 'rgba(0,212,170,.15)' },
+  reboot: { icon: '🔄', color: 'rgba(255,255,255,.05)' },
+  ota_start: { icon: '📥', color: 'rgba(0,145,255,.1)' },
+  ota_done: { icon: '🚀', color: 'rgba(0,212,170,.15)' },
+  ota_fail: { icon: '❌', color: 'rgba(255,45,85,.15)' },
+};
+
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'ota') loadFirmware();
+  if (name === 'events') loadEvents();
+}
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3000);
+}
+
+function relativeTime(isoStr) {
+  if (!isoStr) return '—';
+  const diff = Math.floor((Date.now() - new Date(isoStr + (isoStr.endsWith('Z') ? '' : 'Z'))) / 1000);
+  if (diff < 60) return `hace ${diff}s`;
+  if (diff < 3600) return `hace ${Math.floor(diff/60)}m`;
+  if (diff < 86400) return `hace ${Math.floor(diff/3600)}h`;
+  return `hace ${Math.floor(diff/86400)}d`;
+}
+
+async function loadDevices() {
+  try {
+    const res = await fetch('/api/devices/');
+    const devices = await res.json();
+
+    const total   = devices.length;
+    const online  = devices.filter(d => d.status === 'online').length;
+    const offline = devices.filter(d => d.status === 'offline').length;
+    const alarm   = devices.filter(d => d.status === 'alarm').length;
+
+    document.getElementById('statTotal').textContent   = total;
+    document.getElementById('statOnline').textContent  = online;
+    document.getElementById('statOffline').textContent = offline;
+    document.getElementById('statAlarm').textContent   = alarm;
+
+    const tbody = document.getElementById('devicesBody');
+    if (devices.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6">
+        <div class="empty">
+          <div class="empty-icon">📡</div>
+          <div class="empty-text">Ningún dispositivo registrado aún.<br>El primer heartbeat del ESP32 lo creará automáticamente.</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = devices.map(d => `
+      <tr>
+        <td>
+          <div style="font-weight:600">${d.name}</div>
+          <div class="mono" style="font-size:.7rem;margin-top:2px">${d.id}</div>
+        </td>
+        <td><span class="badge ${d.status}">${d.status}</span></td>
+        <td><span class="mono">${d.ip_address || '—'}</span></td>
+        <td><span class="version-tag">v${d.firmware_version}</span></td>
+        <td><span class="mono">${relativeTime(d.last_seen)}</span></td>
+        <td>
+          <div class="actions">
+            <button class="btn-sm" onclick="renameDevice('${d.id}', '${d.name}')">✏️ Renombrar</button>
+            <button class="btn-sm warn" onclick="rebootDevice('${d.id}', '${d.name}')">🔄 Reboot</button>
+            <button class="btn-sm danger" onclick="deleteDevice('${d.id}', '${d.name}')">🗑️ Eliminar</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error(e);
+    toast('Error cargando dispositivos', 'error');
+  }
+}
+
+async function loadEvents() {
+  try {
+    const res = await fetch('/api/events/?limit=50');
+    const events = await res.json();
+    const container = document.getElementById('eventsList');
+    if (events.length === 0) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin eventos aún.</div></div>';
+      return;
+    }
+    container.innerHTML = events.map(e => {
+      const meta = EVENT_ICONS[e.type] || { icon: '•', color: 'rgba(255,255,255,.05)' };
+      return `
+        <div class="event-item">
+          <div class="event-icon" style="background:${meta.color}">${meta.icon}</div>
+          <div class="event-body">
+            <div class="event-type">${e.type}</div>
+            <div class="event-meta">${e.device_name || e.device_id} ${e.payload && e.payload !== '{}' ? '· ' + e.payload : ''}</div>
+          </div>
+          <div class="event-time">${relativeTime(e.created_at)}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    toast('Error cargando eventos', 'error');
+  }
+}
+
+async function loadFirmware() {
+  try {
+    const res = await fetch('/api/ota/list');
+    const list = await res.json();
+    const container = document.getElementById('firmwareList');
+    if (list.length === 0) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">Sin firmware subido aún.</div></div>';
+      return;
+    }
+    container.innerHTML = list.map(fw => `
+      <div class="firmware-row">
+        <div>
+          <div class="fw-version">v${fw.version}</div>
+          <div class="mono" style="font-size:.7rem;margin-top:2px">${fw.notes || 'Sin notas'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="fw-stable ${fw.is_stable ? 'yes' : 'no'}">${fw.is_stable ? 'Estable' : 'Draft'}</span>
+          <button class="btn-sm danger" onclick="deleteFirmware(${fw.id}, '${fw.version}')">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    toast('Error cargando firmware', 'error');
+  }
+}
+
+async function uploadFirmware() {
+  const version = document.getElementById('fwVersion').value.trim();
+  const file    = document.getElementById('fwFile').files[0];
+  const notes   = document.getElementById('fwNotes').value.trim();
+  const stable  = document.getElementById('fwStable').checked ? 1 : 0;
+
+  if (!version || !file) { toast('Completá versión y archivo', 'error'); return; }
+
+  const form = new FormData();
+  form.append('file', file);
+  form.append('version', version);
+  form.append('notes', notes);
+  form.append('is_stable', stable);
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = 'Subiendo...';
+
+  try {
+    const res = await fetch('/api/ota/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (res.ok) {
+      toast(`✅ Firmware v${version} subido correctamente`);
+      loadFirmware();
+      document.getElementById('fwVersion').value = '';
+      document.getElementById('fwNotes').value = '';
+    } else {
+      toast(data.detail || 'Error subiendo firmware', 'error');
+    }
+  } catch(e) {
+    toast('Error de red', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Subir firmware';
+  }
+}
+
+async function rebootDevice(id, name) {
+  if (!confirm(`¿Rebootear "${name}"? El dispositivo se reiniciará en el próximo heartbeat.`)) return;
+  const res = await fetch(`/api/devices/${id}/reboot`, { method: 'POST' });
+  const data = await res.json();
+  toast(res.ok ? `🔄 Reboot encolado para ${name}` : 'Error', res.ok ? 'success' : 'error');
+}
+
+async function renameDevice(id, currentName) {
+  const name = prompt('Nuevo nombre:', currentName);
+  if (!name || name === currentName) return;
+  const res = await fetch(`/api/devices/${id}/name`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ name })
+  });
+  if (res.ok) { toast('✅ Nombre actualizado'); loadDevices(); }
+  else toast('Error actualizando nombre', 'error');
+}
+
+async function deleteDevice(id, name) {
+  if (!confirm(`¿Eliminar "${name}" y su historial? Esta acción no se puede deshacer.`)) return;
+  const res = await fetch(`/api/devices/${id}`, { method: 'DELETE' });
+  if (res.ok) { toast(`🗑️ ${name} eliminado`); loadDevices(); }
+  else toast('Error eliminando dispositivo', 'error');
+}
+
+async function deleteFirmware(id, version) {
+  if (!confirm(`¿Eliminar firmware v${version}?`)) return;
+  const res = await fetch(`/api/ota/${id}`, { method: 'DELETE' });
+  if (res.ok) { toast(`🗑️ Firmware v${version} eliminado`); loadFirmware(); }
+  else toast('Error', 'error');
+}
+
+function loadAll() {
+  loadDevices();
+  // actualizar el tab activo
+  const activeTab = document.querySelector('.tab-content.active');
+  if (activeTab?.id === 'tab-events') loadEvents();
+  if (activeTab?.id === 'tab-ota') loadFirmware();
+}
+
+// Reloj del servidor
+function updateClock() {
+  document.getElementById('serverTime').textContent = new Date().toLocaleTimeString('es-AR');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Auto-refresh dispositivos cada 30s
+loadAll();
+setInterval(() => {
+  loadDevices();
+}, 30000);
+</script>
+</body>
+</html>
