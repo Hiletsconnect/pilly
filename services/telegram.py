@@ -36,6 +36,16 @@ async def send_telegram(chat_id: str, message: str) -> bool:
         logger.error(f"Telegram send failed: {e}")
         return False
 
+
+# ✅ ESTA ES LA QUE TE FALTABA (la que importan los routers)
+async def notify(message: str, chat_id: str = "") -> bool:
+    """
+    Generic notification helper.
+    Routers import this as: from services.telegram import notify
+    """
+    return await send_telegram(chat_id, message)
+
+
 async def notify_alarm(device_name: str, device_id: str, compartment: int,
                        scheduled_time: str, chat_id: str = "") -> bool:
     msg = (
@@ -47,8 +57,9 @@ async def notify_alarm(device_name: str, device_id: str, compartment: int,
     )
     return await send_telegram(chat_id, msg)
 
+
 async def notify_dose_missed(device_name: str, device_id: str, compartment: int,
-                              scheduled_time: str, chat_id: str = "") -> bool:
+                             scheduled_time: str, chat_id: str = "") -> bool:
     msg = (
         f"⚠️ <b>Dosis NO tomada</b>\n\n"
         f"📦 Dispositivo: <b>{device_name}</b>\n"
@@ -59,6 +70,7 @@ async def notify_dose_missed(device_name: str, device_id: str, compartment: int,
     )
     return await send_telegram(chat_id, msg)
 
+
 async def notify_device_offline(device_name: str, device_id: str, chat_id: str = "") -> bool:
     msg = (
         f"🔴 <b>Dispositivo desconectado</b>\n\n"
@@ -67,6 +79,7 @@ async def notify_device_offline(device_name: str, device_id: str, chat_id: str =
         f"<i>ID: {device_id}</i>"
     )
     return await send_telegram(chat_id, msg)
+
 
 async def notify_reboot(device_name: str, device_id: str, chat_id: str = "") -> bool:
     msg = (
