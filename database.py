@@ -1,56 +1,62 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, DateTime, Boolean, Text, Float
-from datetime import datetime, timezone
-from config import settings
+import sqlite3
+import os
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+# En Railway usamos el Volume montado en /data
+# En local usamos el directorio actual
+DATA_DIR = os.getenv("DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "pastillero.db")
 
-class Base(DeclarativeBase):
-    pass
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        yield conn
+    finally:
+        conn.close()
 
-class Device(Base):
-    __tablename__ = "devices"
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS devices (
+            id              TEXT PRIMARY KEY,
+            name            TEXT NOT NULL DEFAULT '',
+            firmware_version TEXT NOT NULL DEFAULT '0.0.0',
+            ip_address      TEXT,
+            status          TEXT NOT NULL DEFAULT 'offline',
+            last_seen       DATETIME,
+            registered_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            telegram_chat_id TEXT,
+            notes           TEXT DEFAULT ''
+        );
 
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # MAC address
-    name: Mapped[str] = mapped_column(String(128), default="Pastillero")
-    firmware_version: Mapped[str] = mapped_column(String(32), default="0.0.0")
-    ip_address: Mapped[str] = mapped_column(String(45), default="")
-    status: Mapped[str] = mapped_column(String(32), default="offline")  # online, offline, alarming
-    last_seen: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    registered_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    telegram_chat_id: Mapped[str] = mapped_column(String(64), default="")
-    notes: Mapped[str] = mapped_column(Text, default="")
-    reboot_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+        CREATE TABLE IF NOT EXISTS events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id   TEXT NOT NULL,
+            type        TEXT NOT NULL,
+            payload     TEXT,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (device_id) REFERENCES devices(id)
+        );
 
-class FirmwareRelease(Base):
-    __tablename__ = "firmware_releases"
+        CREATE TABLE IF NOT EXISTS firmware (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            version     TEXT NOT NULL UNIQUE,
+            filename    TEXT NOT NULL,
+            sha256      TEXT NOT NULL,
+            size_bytes  INTEGER,
+            notes       TEXT DEFAULT '',
+            is_stable   INTEGER DEFAULT 1,
+            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    version: Mapped[str] = mapped_column(String(32), unique=True)
-    filename: Mapped[str] = mapped_column(String(256))
-    sha256: Mapped[str] = mapped_column(String(64))
-    size_bytes: Mapped[int] = mapped_column(default=0)
-    changelog: Mapped[str] = mapped_column(Text, default="")
-    is_stable: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-class DoseEvent(Base):
-    __tablename__ = "dose_events"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    device_id: Mapped[str] = mapped_column(String(64))
-    event_type: Mapped[str] = mapped_column(String(32))  # alarm_triggered, dose_taken, dose_missed, alarm_snoozed
-    compartment: Mapped[int] = mapped_column(default=0)  # 0-7 compartment number
-    scheduled_time: Mapped[str] = mapped_column(String(8), default="")  # HH:MM
-    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    notes: Mapped[str] = mapped_column(Text, default="")
-
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        CREATE TABLE IF NOT EXISTS reboot_queue (
+            device_id   TEXT PRIMARY KEY,
+            queued_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+    conn.close()
+    print(f"[db] Base de datos inicializada en {DB_PATH}")

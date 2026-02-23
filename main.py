@@ -1,49 +1,50 @@
-import asyncio
-import logging
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-import os
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+import asyncio, sqlite3, os
 
+from database import init_db, get_db
+from routers import devices, ota, events, admin
 from config import settings
-from database import init_db
-from routers import devices, admin
-from services.background import check_offline_devices
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Pastillero Cloud server...")
-    await init_db()
-    os.makedirs(settings.FIRMWARE_DIR, exist_ok=True)
-    task = asyncio.create_task(check_offline_devices())
-    logger.info("Server ready.")
+    init_db()
+    asyncio.create_task(offline_watchdog())
     yield
-    task.cancel()
-    logger.info("Server shutting down.")
 
-app = FastAPI(
-    title="Pastillero Cloud API",
-    version="1.0.0",
-    description="Backend para pastillero inteligente ESP32",
-    lifespan=lifespan
-)
+app = FastAPI(title="Pastillero API", version="1.0.0", lifespan=lifespan)
 
-app.include_router(devices.router)
-app.include_router(admin.router)
-
+os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/", include_in_schema=False)
+app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
+app.include_router(ota.router,     prefix="/api/ota",     tags=["ota"])
+app.include_router(events.router,  prefix="/api/events",  tags=["events"])
+app.include_router(admin.router,   prefix="/admin",       tags=["admin"])
+
+@app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    return FileResponse("static/index.html")
+    with open("templates/dashboard.html") as f:
+        return f.read()
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": settings.APP_NAME}
+    return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
+
+async def offline_watchdog():
+    while True:
+        await asyncio.sleep(30)
+        try:
+            conn = sqlite3.connect("pastillero.db")
+            conn.execute("""
+                UPDATE devices SET status = 'offline'
+                WHERE status != 'offline'
+                AND (strftime('%s','now') - strftime('%s', last_seen)) > 120
+            """)
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[watchdog] {e}")
