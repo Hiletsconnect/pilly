@@ -75,3 +75,4 @@ async def notify_reboot(device_name: str, device_id: str, chat_id: str = "") -> 
         f"<i>ID: {device_id}</i>"
     )
     return await send_telegram(chat_id, msg)
+    

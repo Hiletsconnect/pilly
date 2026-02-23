@@ -6,7 +6,9 @@ from config import settings
 from services.telegram import notify
 
 router = APIRouter()
-FIRMWARE_DIR = settings.FIRMWARE_DIR
+import os
+DATA_DIR = os.getenv("DATA_DIR", ".")
+FIRMWARE_DIR = os.path.join(DATA_DIR, settings.FIRMWARE_DIR)
 os.makedirs(FIRMWARE_DIR, exist_ok=True)
 
 def verify_device_key(x_api_key: str = Header(...)):
