@@ -7,18 +7,28 @@ DATA_DIR = os.getenv("DATA_DIR", ".")
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "pastillero.db")
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
+
+def _connect():
+    # ✅ Permite usar la conexión desde distintos threads (FastAPI async + threadpool)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+
+    # WAL ayuda con concurrencia (lecturas mientras escribe)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
+def get_db():
+    conn = _connect()
     try:
         yield conn
     finally:
         conn.close()
 
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _connect()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS devices (
             id              TEXT PRIMARY KEY,
