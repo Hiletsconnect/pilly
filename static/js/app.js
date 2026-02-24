@@ -1,4 +1,4 @@
-// ESP32 Management System - Frontend JavaScript
+// Pilly Cloud - Frontend JavaScript
 
 // Utility Functions
 function formatDate(dateString) {
@@ -68,9 +68,29 @@ async function fetchAPI(url, options = {}) {
         return await response.json();
     } catch (error) {
         console.error('API Error:', error);
-        showToast('Error connecting to server', 'error');
+        showToast('Error conectando con el servidor', 'error');
         throw error;
     }
+}
+
+
+function formatStatus(status) {
+    if (!status) return 'desconocido';
+    const s = String(status).toLowerCase();
+    const map = {
+        'online': 'en línea',
+        'offline': 'fuera de línea',
+        'pending': 'pendiente',
+        'blocked': 'bloqueado'
+    };
+    return map[s] || status;
+}
+
+function formatSeverity(sev) {
+    if (!sev) return 'info';
+    const s = String(sev).toLowerCase();
+    const map = { 'error': 'error', 'warning': 'advertencia', 'info': 'info', 'success': 'ok' };
+    return map[s] || sev;
 }
 
 // Dashboard Functions
@@ -100,7 +120,7 @@ async function loadRecentDevices() {
         const recentDevices = devices.slice(0, 5);
         
         if (recentDevices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No devices registered yet</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Todavía no hay pastilleros registrados</td></tr>';
             return;
         }
         
@@ -108,15 +128,15 @@ async function loadRecentDevices() {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <strong>${device.device_name || 'Unnamed Device'}</strong><br>
+                    <strong>${device.device_name || 'Pastillero sin nombre'}</strong><br>
                     <small style="color: var(--gray-500)">${device.mac_address}</small>
                 </td>
                 <td>${device.ip_address || 'N/A'}</td>
-                <td>${device.firmware_version || 'Unknown'}</td>
+                <td>${device.firmware_version || 'Desconocido'}</td>
                 <td>
                     <span class="status-badge status-${device.status}">
                         <span class="status-dot"></span>
-                        ${device.status}
+                        ${formatStatus(device.status)}
                     </span>
                 </td>
                 <td>${formatDate(device.last_seen)}</td>
@@ -143,8 +163,8 @@ async function loadDevices() {
                 <tr>
                     <td colspan="8" class="text-center">
                         <div class="empty-state">
-                            <div class="empty-state-title">No devices yet</div>
-                            <div class="empty-state-text">Devices will appear here once they connect to the system</div>
+                            <div class="empty-state-title">No hay pastilleros todavía</div>
+                            <div class="empty-state-text">Van a aparecer acá cuando se conecten al sistema</div>
                         </div>
                     </td>
                 </tr>
@@ -156,16 +176,16 @@ async function loadDevices() {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <strong>${device.device_name || 'Unnamed Device'}</strong><br>
+                    <strong>${device.device_name || 'Pastillero sin nombre'}</strong><br>
                     <small style="color: var(--gray-500)">${device.mac_address}</small>
                 </td>
                 <td>${device.ip_address || 'N/A'}</td>
                 <td>${device.ssid || 'N/A'}</td>
-                <td>${device.firmware_version || 'Unknown'}</td>
+                <td>${device.firmware_version || 'Desconocido'}</td>
                 <td>
                     <span class="status-badge status-${device.status}">
                         <span class="status-dot"></span>
-                        ${device.status}
+                        ${formatStatus(device.status)}
                     </span>
                 </td>
                 <td>${formatUptime(device.uptime || 0)}</td>
@@ -278,13 +298,13 @@ async function deleteRelease(id, version) {
         });
         
         if (response.ok) {
-            showToast('Release deleted successfully', 'success');
+            showToast('Firmware eliminado ✅', 'success');
             loadReleases();
         } else {
-            showToast('Error deleting release', 'error');
+            showToast('Error eliminando firmware', 'error');
         }
     } catch (error) {
-        showToast('Error deleting release', 'error');
+        showToast('Error eliminando firmware', 'error');
     }
 }
 
@@ -303,8 +323,8 @@ async function loadAlarms() {
                 <tr>
                     <td colspan="5" class="text-center">
                         <div class="empty-state">
-                            <div class="empty-state-title">No alarms yet</div>
-                            <div class="empty-state-text">Alarm events will appear here</div>
+                            <div class="empty-state-title">Todavía no hay eventos</div>
+                            <div class="empty-state-text">Los eventos de tomas/alertas van a aparecer acá</div>
                         </div>
                     </td>
                 </tr>
@@ -321,14 +341,14 @@ async function loadAlarms() {
             row.innerHTML = `
                 <td>${formatDate(alarm.created_at)}</td>
                 <td>
-                    ${alarm.device_name || 'Unknown Device'}<br>
+                    ${alarm.device_name || 'Desconocido Device'}<br>
                     <small style="color: var(--gray-500)">${alarm.mac_address || 'N/A'}</small>
                 </td>
                 <td>${alarm.alarm_type}</td>
                 <td>
                     <span class="status-badge ${severityClass}">
                         <span class="status-dot"></span>
-                        ${alarm.severity}
+                        ${formatSeverity(alarm.severity)}
                     </span>
                 </td>
                 <td>${alarm.message}</td>

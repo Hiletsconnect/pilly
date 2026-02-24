@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Alarms - ESP32 Management{% endblock %}
-{% block page_title %}Alarm History{% endblock %}
-{% block page_description %}Monitor events and alerts from your devices{% endblock %}
+{% block title %}Tomas & alertas - Pilly Cloud{% endblock %}
+{% block page_title %}Tomas & alertas{% endblock %}
+{% block page_description %}Historial de tomas, recordatorios y eventos del sistema{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Recent Alarms</h3>
+        <h3 class="card-title">Eventos recientes</h3>
         <button class="btn btn-secondary btn-sm" onclick="loadAlarms()">
             <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
-            Refresh
+            Actualizar
         </button>
     </div>
     
@@ -20,11 +20,11 @@
         <table>
             <thead>
                 <tr>
-                    <th>Timestamp</th>
-                    <th>Device</th>
-                    <th>Type</th>
-                    <th>Severity</th>
-                    <th>Message</th>
+                    <th>Fecha/Hora</th>
+                    <th>Pastillero</th>
+                    <th>Tipo</th>
+                    <th>Severidad</th>
+                    <th>Mensaje</th>
                 </tr>
             </thead>
             <tbody id="alarms-tbody">

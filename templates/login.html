@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - ESP32 Management</title>
+    <title>Iniciar sesión - Pilly Cloud</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <div class="login-logo">ESP</div>
-                <h1 class="login-title">ESP32 Management</h1>
-                <p class="login-subtitle">Sign in to manage your devices</p>
+                <div class="login-logo">P</div>
+                <h1 class="login-title">Pilly Cloud</h1>
+                <p class="login-subtitle">Entrá para administrar tus pastilleros 💊</p>
             </div>
             
             {% if error %}
@@ -23,17 +23,17 @@
             
             <form method="POST" action="{{ url_for('login') }}">
                 <div class="form-group">
-                    <label for="username">Username</label>
+                    <label for="username">Usuario</label>
                     <input type="text" id="username" name="username" required autofocus>
                 </div>
                 
                 <div class="form-group">
-                    <label for="password">Password</label>
+                    <label for="password">Contraseña</label>
                     <input type="password" id="password" name="password" required>
                 </div>
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    Sign In
+                    Entrar
                 </button>
             </form>
             
