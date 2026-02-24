@@ -1,72 +1,110 @@
-import sqlite3
 import os
+from contextlib import contextmanager
 
-# En Railway usamos el Volume montado en /data
-# En local usamos el directorio actual
+import pymysql
+
+# Railway: si usas Volume, podés setear DATA_DIR=/data (para firmwares, logs, etc)
 DATA_DIR = os.getenv("DATA_DIR", ".")
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "pastillero.db")
 
+def _mysql_config():
+    return {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", "3306")),
+        "user": os.getenv("DB_USER", "root"),
+        "password": os.getenv("DB_PASS", ""),
+        "database": os.getenv("DB_NAME", "pilly"),
+        "charset": "utf8mb4",
+        "cursorclass": pymysql.cursors.DictCursor,
+        "autocommit": False,
+    }
 
 def _connect():
-    # ✅ Permite usar la conexión desde distintos threads (FastAPI async + threadpool)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-
-    # WAL ayuda con concurrencia (lecturas mientras escribe)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
-
+    cfg = _mysql_config()
+    return pymysql.connect(**cfg)
 
 def get_db():
+    """FastAPI dependency: entrega una conexión MySQL y la cierra al final."""
     conn = _connect()
     try:
         yield conn
     finally:
-        conn.close()
-
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def init_db():
+    """Crea tablas si no existen + bootstrap de admin (si corresponde)."""
     conn = _connect()
-    conn.executescript("""
+    cur = conn.cursor()
+
+    # Base de datos (por si DB_NAME no existe y el usuario tiene permisos)
+    # OJO: si Railway ya te da la DB creada, esto igual no rompe.
+    db_name = os.getenv("DB_NAME", "pilly")
+    cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    cur.execute(f"USE `{db_name}`")
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS devices (
-            id              TEXT PRIMARY KEY,
-            name            TEXT NOT NULL DEFAULT '',
-            firmware_version TEXT NOT NULL DEFAULT '0.0.0',
-            ip_address      TEXT,
-            status          TEXT NOT NULL DEFAULT 'offline',
-            last_seen       DATETIME,
-            registered_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-            telegram_chat_id TEXT,
-            notes           TEXT DEFAULT ''
-        );
-
-        CREATE TABLE IF NOT EXISTS events (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            device_id   TEXT NOT NULL,
-            type        TEXT NOT NULL,
-            payload     TEXT,
-            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (device_id) REFERENCES devices(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS firmware (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            version     TEXT NOT NULL UNIQUE,
-            filename    TEXT NOT NULL,
-            sha256      TEXT NOT NULL,
-            size_bytes  INTEGER,
-            notes       TEXT DEFAULT '',
-            is_stable   INTEGER DEFAULT 1,
-            uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS reboot_queue (
-            device_id   TEXT PRIMARY KEY,
-            queued_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+            id               VARCHAR(64) PRIMARY KEY,
+            name             VARCHAR(255) NOT NULL DEFAULT '',
+            firmware_version VARCHAR(32) NOT NULL DEFAULT '0.0.0',
+            ip_address       VARCHAR(64),
+            status           VARCHAR(32) NOT NULL DEFAULT 'offline',
+            last_seen        DATETIME NULL,
+            registered_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            telegram_chat_id VARCHAR(64),
+            notes            TEXT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+            device_id  VARCHAR(64) NOT NULL,
+            type       VARCHAR(64) NOT NULL,
+            payload    JSON NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_events_device_time (device_id, created_at),
+            CONSTRAINT fk_events_device FOREIGN KEY (device_id) REFERENCES devices(id)
+                ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS firmware (
+            id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+            version     VARCHAR(32) NOT NULL UNIQUE,
+            filename    VARCHAR(255) NOT NULL,
+            sha256      CHAR(64) NOT NULL,
+            size_bytes  BIGINT,
+            notes       TEXT,
+            is_stable   TINYINT(1) NOT NULL DEFAULT 1,
+            uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_fw_uploaded (uploaded_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reboot_queue (
+            device_id VARCHAR(64) PRIMARY KEY,
+            queued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_reboot_device FOREIGN KEY (device_id) REFERENCES devices(id)
+                ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+            username      VARCHAR(64) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL,
+            role          VARCHAR(32) NOT NULL DEFAULT 'admin',
+            created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
     conn.commit()
     conn.close()
-    print(f"[db] Base de datos inicializada en {DB_PATH}")
+    print("[db] Tablas MySQL listas ✅")
