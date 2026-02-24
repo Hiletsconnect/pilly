@@ -1,12 +1,15 @@
+# security.py
 import bcrypt
 
-def hash_password(password: str) -> str:
-    pw = password.encode("utf-8")
-    hashed = bcrypt.hashpw(pw, bcrypt.gensalt(rounds=12))
+def hash_password(plain: str) -> str:
+    if not plain or len(plain) < 8:
+        raise ValueError("Password muy corta (min 8).")
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(plain.encode("utf-8"), salt)
     return hashed.decode("utf-8")
 
-def verify_password(password: str, hashed: str) -> bool:
+def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False

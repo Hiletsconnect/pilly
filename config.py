@@ -30,6 +30,11 @@ class Settings:
     # En producción: OBLIGATORIO
     SESSION_SECRET: str = _getenv("SESSION_SECRET", default="") or ""
 
+    # ---- Sessions / Auth ----
+    SESSION_SECRET: str = _getenv("SESSION_SECRET", default="")  # en prod debe venir seteado
+    DEFAULT_ADMIN_USER: str = _getenv("DEFAULT_ADMIN_USER", default="admin")
+    DEFAULT_ADMIN_PASS: str = _getenv("DEFAULT_ADMIN_PASS", default="")
+
     # ---- DB ----
     DB_HOST: str = _getenv("DB_HOST", "MYSQLHOST", "MYSQL_HOST", default="127.0.0.1")
     DB_PORT: int = int(_getenv("DB_PORT", "MYSQLPORT", "MYSQL_PORT", default="3306"))
