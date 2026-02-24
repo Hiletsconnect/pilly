@@ -1,6 +1,8 @@
 # config.py
 import os
 
+SESSION_SECRET: str | None = None
+
 def _getenv(*names: str, default: str | None = None) -> str | None:
     for n in names:
         v = os.getenv(n)

@@ -21,18 +21,53 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# sesiones (login web)
-app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET)
 
-# templates
+# ==========================================================
+# 🔐 CONFIGURACIÓN SEGURA DE SESIONES
+# ==========================================================
+
+ENV = os.getenv("ENV", "").lower()
+IS_PROD = ENV in ("prod", "production") or os.getenv("RAILWAY_ENVIRONMENT") is not None
+
+secret = getattr(settings, "SESSION_SECRET", None)
+
+if not secret:
+    if IS_PROD:
+        raise RuntimeError(
+            "SESSION_SECRET no configurado en producción. "
+            "Agregalo en Railway -> Variables."
+        )
+    else:
+        print("[WARN] SESSION_SECRET no configurado -> sesiones desactivadas (modo dev)")
+else:
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=secret,
+        https_only=IS_PROD,   # 🔒 cookies solo HTTPS en prod
+        same_site="lax",      # protección CSRF básica
+    )
+
+
+# ==========================================================
+# 📄 Templates
+# ==========================================================
+
 templates = Jinja2Templates(directory="templates")
 app.state.templates = templates
 
-# ✅ static: crear carpeta si no existe para evitar crash
+
+# ==========================================================
+# 📦 Static files
+# ==========================================================
+
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# routers
+
+# ==========================================================
+# 🚀 Routers
+# ==========================================================
+
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(app_client.router)
@@ -41,6 +76,10 @@ app.include_router(events.router)
 app.include_router(ota.router)
 app.include_router(admin_tools.router)
 
+
+# ==========================================================
+# 🌍 Root
+# ==========================================================
 
 @app.get("/")
 def root():
