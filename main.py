@@ -10,11 +10,16 @@ from database import init_db
 
 from routers import auth, admin, app_client, devices, events, ota, admin_tools
 
+import os
+from fastapi.staticfiles import StaticFiles
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     yield
 
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app = FastAPI(lifespan=lifespan)
 
