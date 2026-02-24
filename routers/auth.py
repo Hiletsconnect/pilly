@@ -26,10 +26,19 @@ def login_page(request: Request):
     return request.app.state.templates.TemplateResponse("login.html", {"request": request})
 
 @router.post("/login")
-def login(request: Request, username: str = Form(...), password: str = Form(...), db=Depends(get_db)):
-    cur = db.cursor()
-    cur.execute("SELECT id, username, password_hash, role FROM users WHERE username=%s LIMIT 1", (username,))
-    u = cur.fetchone()
+def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db=Depends(get_db)
+):
+    # db ya ES un cursor (DictCursor). No hagas db.cursor()
+    db.execute(
+        "SELECT id, username, password_hash, role FROM users WHERE username=%s LIMIT 1",
+        (username,)
+    )
+    u = db.fetchone()
+
     if not u or not verify_password(password, u["password_hash"]):
         return request.app.state.templates.TemplateResponse(
             "login.html",
@@ -37,6 +46,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         )
 
     request.session["user"] = {"id": u["id"], "username": u["username"], "role": u["role"]}
+
     # Redirect según rol
     target = "/admin" if u["role"] == "admin" else "/app"
     return RedirectResponse(url=target, status_code=303)
