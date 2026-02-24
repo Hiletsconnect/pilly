@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Alarms - ESP32 Management{% endblock %}
+{% block page_title %}Alarm History{% endblock %}
+{% block page_description %}Monitor events and alerts from your devices{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Recent Alarms</h3>
+        <button class="btn btn-secondary btn-sm" onclick="loadAlarms()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Refresh
+        </button>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Device</th>
+                    <th>Type</th>
+                    <th>Severity</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody id="alarms-tbody">
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="spinner" style="margin: 20px auto;"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Alarm Types Info -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Alarm Types</h3>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px; border-left: 3px solid var(--success-green);">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span class="status-badge status-online" style="margin-right: 8px;">
+                    <span class="status-dot"></span>
+                    info
+                </span>
+                <strong>Informational</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">
+                Normal operations like device registration, successful updates, routine checks
+            </p>
+        </div>
+        
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px; border-left: 3px solid var(--warning-orange);">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span class="status-badge status-warning" style="margin-right: 8px;">
+                    <span class="status-dot"></span>
+                    warning
+                </span>
+                <strong>Warnings</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">
+                Non-critical issues like low memory, connectivity problems, sensor anomalies
+            </p>
+        </div>
+        
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px; border-left: 3px solid var(--error-red);">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span class="status-badge status-offline" style="margin-right: 8px;">
+                    <span class="status-dot"></span>
+                    error
+                </span>
+                <strong>Errors</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">
+                Critical failures requiring immediate attention, system crashes, hardware faults
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- How to Send Alarms -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Sending Alarms from ESP32</h3>
+    </div>
+    
+    <div style="line-height: 1.8;">
+        <p style="margin-bottom: 16px;">Your ESP32 devices can send alarms using the following API endpoint:</p>
+        
+        <div style="background: var(--gray-900); color: var(--gray-100); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; overflow-x: auto; margin-bottom: 16px;">
+            <div style="color: var(--gray-400);">// POST {{ request.url_root }}api/esp32/alarm</div>
+            <div style="margin-top: 8px;">&#123;</div>
+            <div style="margin-left: 20px;">"mac_address": "AA:BB:CC:DD:EE:FF",</div>
+            <div style="margin-left: 20px;">"alarm_type": "temperature_high",</div>
+            <div style="margin-left: 20px;">"message": "Temperature exceeded 85°C",</div>
+            <div style="margin-left: 20px;">"severity": "error"  <span style="color: var(--gray-400);">// info, warning, or error</span></div>
+            <div>&#125;</div>
+        </div>
+        
+        <h4 style="font-size: 16px; font-weight: 600; margin: 24px 0 12px;">Common Alarm Scenarios</h4>
+        
+        <ul style="margin-left: 20px; line-height: 1.8;">
+            <li><strong>device_registered</strong> - When a new device connects (info)</li>
+            <li><strong>ota_update_started</strong> - Firmware update initiated (info)</li>
+            <li><strong>ota_update_success</strong> - Firmware updated successfully (info)</li>
+            <li><strong>ota_update_failed</strong> - Firmware update failed (error)</li>
+            <li><strong>low_memory</strong> - Free heap below threshold (warning)</li>
+            <li><strong>sensor_error</strong> - Sensor malfunction detected (error)</li>
+            <li><strong>wifi_disconnected</strong> - WiFi connection lost (warning)</li>
+            <li><strong>custom_alert</strong> - Your application-specific alerts</li>
+        </ul>
+        
+        <div style="margin-top: 20px; padding: 16px; background: var(--gray-50); border-radius: 8px; border-left: 3px solid var(--primary-blue);">
+            <strong style="color: var(--primary-blue);">💡 Pro Tip</strong>
+            <p style="margin: 8px 0 0; font-size: 14px; color: var(--gray-700);">
+                Implement alarm batching to avoid overwhelming the system with too many requests.
+                Send critical alarms immediately, but batch informational logs every few minutes.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Alarm Statistics</h3>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <div style="text-align: center; padding: 20px; background: var(--gray-50); border-radius: 8px;">
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 8px;">LAST 24 HOURS</div>
+            <div id="alarms-24h" style="font-size: 32px; font-weight: 700; color: var(--gray-900);">-</div>
+        </div>
+        
+        <div style="text-align: center; padding: 20px; background: var(--gray-50); border-radius: 8px;">
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 8px;">LAST 7 DAYS</div>
+            <div id="alarms-7d" style="font-size: 32px; font-weight: 700; color: var(--gray-900);">-</div>
+        </div>
+        
+        <div style="text-align: center; padding: 20px; background: var(--gray-50); border-radius: 8px;">
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 8px;">TOTAL</div>
+            <div id="alarms-total" style="font-size: 32px; font-weight: 700; color: var(--gray-900);">-</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Calculate alarm statistics
+async function calculateAlarmStats() {
+    try {
+        const alarms = await fetchAPI('/api/alarms/list?limit=1000');
+        
+        const now = new Date();
+        const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        let count24h = 0;
+        let count7d = 0;
+        
+        alarms.forEach(alarm => {
+            const alarmDate = new Date(alarm.created_at);
+            if (alarmDate > last24h) count24h++;
+            if (alarmDate > last7d) count7d++;
+        });
+        
+        document.getElementById('alarms-24h').textContent = count24h;
+        document.getElementById('alarms-7d').textContent = count7d;
+        document.getElementById('alarms-total').textContent = alarms.length;
+    } catch (error) {
+        console.error('Error calculating alarm stats:', error);
+    }
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', () => {
+    calculateAlarmStats();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Devices - ESP32 Management{% endblock %}
+{% block page_title %}Devices{% endblock %}
+{% block page_description %}Manage and monitor your ESP32 devices{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">All Devices</h3>
+        <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" onclick="loadDevices()">
+                <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>IP Address</th>
+                    <th>Network</th>
+                    <th>Firmware</th>
+                    <th>Status</th>
+                    <th>Uptime</th>
+                    <th>Free Heap</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody id="devices-tbody">
+                <tr>
+                    <td colspan="8" class="text-center">
+                        <div class="spinner" style="margin: 20px auto;"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Device Information Card -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">How to Connect Your ESP32</h3>
+    </div>
+    
+    <div style="padding: 20px; background: var(--gray-50); border-radius: 8px;">
+        <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Integration Steps</h4>
+        <ol style="margin-left: 20px; line-height: 1.8;">
+            <li>Upload the ESP32 example code to your device (see <code>/esp32_examples</code> folder)</li>
+            <li>Configure WiFi credentials in the code</li>
+            <li>Set the server URL to: <code style="background: var(--white); padding: 2px 6px; border-radius: 4px;">{{ request.url_root }}</code></li>
+            <li>The device will automatically register and appear in this list</li>
+        </ol>
+        
+        <div style="margin-top: 16px; padding: 12px; background: var(--white); border-radius: 6px; border-left: 3px solid var(--primary-blue);">
+            <strong>API Endpoint for Registration:</strong><br>
+            <code style="font-size: 13px; color: var(--gray-700);">POST {{ request.url_root }}api/esp32/register</code>
+        </div>
+    </div>
+</div>
+
+<!-- Device Capabilities -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Device Capabilities</h3>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <svg style="width: 20px; height: 20px; margin-right: 8px; color: var(--primary-blue);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <strong>OTA Updates</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">Remotely update firmware without physical access</p>
+        </div>
+        
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <svg style="width: 20px; height: 20px; margin-right: 8px; color: var(--success-green);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                <strong>Real-time Monitoring</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">Track device status, uptime, and memory usage</p>
+        </div>
+        
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <svg style="width: 20px; height: 20px; margin-right: 8px; color: var(--warning-orange);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                <strong>Alarm System</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">Receive notifications for critical events</p>
+        </div>
+        
+        <div style="padding: 16px; background: var(--gray-50); border-radius: 8px;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <svg style="width: 20px; height: 20px; margin-right: 8px; color: var(--error-red);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <strong>Remote Restart</strong>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-600); margin: 0;">Restart devices remotely when needed</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

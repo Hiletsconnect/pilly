@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Releases - ESP32 Management{% endblock %}
+{% block page_title %}Firmware Releases{% endblock %}
+{% block page_description %}Manage firmware versions for OTA updates{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Firmware Versions</h3>
+        <button class="btn btn-primary" onclick="showUploadModal()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            Upload Firmware
+        </button>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Version</th>
+                    <th>Description</th>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Uploaded</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="releases-tbody">
+                <tr>
+                    <td colspan="6" class="text-center">
+                        <div class="spinner" style="margin: 20px auto;"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Upload Instructions -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">OTA Update Guide</h3>
+    </div>
+    
+    <div style="padding: 20px; background: var(--gray-50); border-radius: 8px;">
+        <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">How OTA Updates Work</h4>
+        
+        <ol style="margin-left: 20px; line-height: 1.8;">
+            <li><strong>Build your firmware:</strong> Compile your ESP32 project to generate a <code>.bin</code> file</li>
+            <li><strong>Upload to system:</strong> Use the "Upload Firmware" button to add the new version</li>
+            <li><strong>Version checking:</strong> ESP32 devices automatically check for updates on every heartbeat</li>
+            <li><strong>Automatic update:</strong> Devices will download and install the new firmware automatically</li>
+            <li><strong>Verification:</strong> After reboot, devices report their new firmware version</li>
+        </ol>
+        
+        <div style="margin-top: 20px; padding: 16px; background: var(--white); border-radius: 8px; border-left: 3px solid var(--success-green);">
+            <strong style="color: var(--success-green);">💡 Best Practices</strong>
+            <ul style="margin: 8px 0 0 20px; line-height: 1.8;">
+                <li>Use semantic versioning (e.g., 1.0.0, 1.1.0, 2.0.0)</li>
+                <li>Test firmware on a single device before mass deployment</li>
+                <li>Include rollback capabilities in your firmware</li>
+                <li>Keep previous versions available for emergency rollbacks</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- API Documentation -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">API Integration</h3>
+    </div>
+    
+    <div style="line-height: 1.8;">
+        <p style="margin-bottom: 16px;">ESP32 devices check for updates using this endpoint:</p>
+        
+        <div style="background: var(--gray-900); color: var(--gray-100); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; overflow-x: auto; margin-bottom: 16px;">
+            <div style="color: var(--gray-400);">// POST {{ request.url_root }}api/esp32/check_update</div>
+            <div style="margin-top: 8px;">&#123;</div>
+            <div style="margin-left: 20px;">"mac_address": "AA:BB:CC:DD:EE:FF",</div>
+            <div style="margin-left: 20px;">"current_version": "1.0.0"</div>
+            <div>&#125;</div>
+            <div style="margin-top: 12px; color: var(--gray-400);">// Response if update available:</div>
+            <div style="margin-top: 8px;">&#123;</div>
+            <div style="margin-left: 20px;">"update_available": true,</div>
+            <div style="margin-left: 20px;">"version": "1.1.0",</div>
+            <div style="margin-left: 20px;">"url": "{{ request.url_root }}api/esp32/firmware/1.1.0",</div>
+            <div style="margin-left: 20px;">"size": 524288</div>
+            <div>&#125;</div>
+        </div>
+        
+        <p style="font-size: 14px; color: var(--gray-600);">
+            The ESP32 then downloads the firmware from the provided URL and performs the OTA update.
+            See the example code in the <code>/esp32_examples</code> folder for full implementation.
+        </p>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div id="upload-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Upload New Firmware</h3>
+        </div>
+        
+        <form id="upload-form" onsubmit="uploadRelease(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="version">Version *</label>
+                    <input type="text" id="version" name="version" placeholder="e.g., 1.0.0" required>
+                    <small style="font-size: 12px; color: var(--gray-500); display: block; margin-top: 4px;">
+                        Use semantic versioning format
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="What's new in this version?" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="file">Firmware File (.bin) *</label>
+                    <input type="file" id="file" name="file" accept=".bin" required>
+                    <small style="font-size: 12px; color: var(--gray-500); display: block; margin-top: 4px;">
+                        Maximum file size: 16MB
+                    </small>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

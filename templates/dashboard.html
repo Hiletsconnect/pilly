@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ESP32 Management{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_description %}Overview of your ESP32 devices and system status{% endblock %}
+
+{% block content %}
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Devices</div>
+        <div class="stat-value" id="total-devices">0</div>
+        <div class="stat-change">Registered in system</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Online</div>
+        <div class="stat-value" id="online-devices" style="color: var(--success-green);">0</div>
+        <div class="stat-change positive">Active now</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Offline</div>
+        <div class="stat-value" id="offline-devices" style="color: var(--error-red);">0</div>
+        <div class="stat-change">Not responding</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Firmware Releases</div>
+        <div class="stat-value" id="total-releases">0</div>
+        <div class="stat-change">Available versions</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Recent Alarms</div>
+        <div class="stat-value" id="recent-alarms" style="color: var(--warning-orange);">0</div>
+        <div class="stat-change">Last 24 hours</div>
+    </div>
+</div>
+
+<!-- Recent Devices -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Recent Devices</h3>
+        <a href="{{ url_for('devices') }}" class="btn btn-secondary btn-sm">View All</a>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>IP Address</th>
+                    <th>Firmware</th>
+                    <th>Status</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody id="recent-devices-tbody">
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="spinner" style="margin: 20px auto;"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+    </div>
+    
+    <div class="flex gap-2">
+        <a href="{{ url_for('devices') }}" class="btn btn-primary">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Manage Devices
+        </a>
+        
+        <a href="{{ url_for('releases') }}" class="btn btn-success">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            Upload Firmware
+        </a>
+        
+        <a href="{{ url_for('alarms') }}" class="btn btn-secondary">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            View Alarms
+        </a>
+    </div>
+</div>
+
+<!-- System Info -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">System Information</h3>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div>
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 8px;">API Endpoint</div>
+            <div style="font-size: 14px; font-weight: 500; font-family: monospace; background: var(--gray-100); padding: 8px 12px; border-radius: 6px;">
+                {{ request.url_root }}api/
+            </div>
+        </div>
+        
+        <div>
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 8px;">Auto-refresh</div>
+            <div style="font-size: 14px; font-weight: 500;">
+                <span class="status-badge status-online">
+                    <span class="status-dot"></span>
+                    Enabled (30s)
+                </span>
+            </div>
+        </div>
+        
+        <div>
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 8px;">System Status</div>
+            <div style="font-size: 14px; font-weight: 500;">
+                <span class="status-badge status-online">
+                    <span class="status-dot"></span>
+                    Operational
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
