@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: medication_postgres
+    environment:
+      POSTGRES_USER: medication_user
+      POSTGRES_PASSWORD: medication_pass
+      POSTGRES_DB: medication_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - medication_network
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: medication_mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - medication_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medication_backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://medication_user:medication_pass@postgres:5432/medication_db
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - postgres
+      - mosquitto
+    networks:
+      - medication_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medication_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - medication_network
+
+volumes:
+  postgres_data:
+
+networks:
+  medication_network:
+    driver: bridge
