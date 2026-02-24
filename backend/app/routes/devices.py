@@ -1,278 +1,72 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from app.core.database import get_db
-from app.core.security import get_current_user, get_current_admin
-from app.models.user import User
-from app.schemas.device import (
-    DeviceCreate,
-    DeviceUpdate,
-    DeviceResponse,
-    DeviceCommand,
-    OTAUpdateRequest,
-    WiFiChangeRequest,
-    LEDControlRequest
-)
-from app.services.device_service import DeviceService
-from app.services.mqtt_service import mqtt_service
+from sqlalchemy import text
 
-router = APIRouter(prefix="/devices", tags=["devices"])
+from app.db import get_db
+from app.routes.auth import require_login
+from app.schemas import ScheduleUpsert, TestSlot
+from app.mqtt_client import mqtt_service
+from app.security import new_token, hash_password
 
+router = APIRouter()
 
-@router.post("", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
-def create_device(
-    device: DeviceCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # Check if device_id already exists
-    existing = DeviceService.get_device_by_device_id(db, device.device_id)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Device ID already registered"
-        )
-    
-    return DeviceService.create_device(db, device, current_user.id)
+@router.get("/api/devices")
+def my_devices(request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    q = text("""
+      SELECT d.id, d.mac, d.name,
+             COALESCE(s.online,false) as online,
+             s.last_seen, s.ip, s.ssid, s.rssi, s.fw_version
+      FROM devices d
+      LEFT JOIN device_state s ON s.device_id = d.id
+      WHERE d.owner_user_id = :uid
+      ORDER BY d.id DESC
+    """)
+    rows = db.execute(q, {"uid": user["id"]}).fetchall()
+    return {"devices": [dict(r._mapping) for r in rows]}
 
+@router.get("/api/devices/{device_id}/schedule")
+def get_schedule(device_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    ok = db.execute(text("SELECT 1 FROM devices WHERE id=:id AND owner_user_id=:uid"), {"id": device_id, "uid": user["id"]}).fetchone()
+    if not ok:
+        raise HTTPException(status_code=404, detail="Device no encontrado")
 
-@router.get("", response_model=List[DeviceResponse])
-def get_devices(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    if current_user.is_admin:
-        return DeviceService.get_all_devices(db)
-    return DeviceService.get_user_devices(db, current_user.id)
+    row = db.execute(text("SELECT payload_json FROM schedules WHERE device_id=:id ORDER BY updated_at DESC LIMIT 1"), {"id": device_id}).fetchone()
+    return {"payload": row.payload_json if row else {"slots": 6, "items": []}}
 
+@router.put("/api/devices/{device_id}/schedule")
+def put_schedule(device_id: int, body: ScheduleUpsert, request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    row = db.execute(text("SELECT id, mac FROM devices WHERE id=:id AND owner_user_id=:uid"), {"id": device_id, "uid": user["id"]}).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Device no encontrado")
 
-@router.get("/{device_id}", response_model=DeviceResponse)
-def get_device(
-    device_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    device = DeviceService.get_device(db, device_id)
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this device"
-        )
-    
-    return device
+    db.execute(text("INSERT INTO schedules (device_id, payload_json) VALUES (:id, :p::jsonb)"),
+               {"id": device_id, "p": body.payload.model_dump_json()})
+    db.commit()
 
+    # sync a device por MQTT
+    msg = {"id": f"sch_{device_id}", "ts": 0, "payload": body.payload.model_dump()}
+    mqtt_service.publish_schedule_set(row.mac, msg)
 
-@router.put("/{device_id}", response_model=DeviceResponse)
-def update_device(
-    device_id: int,
-    device: DeviceUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    db_device = DeviceService.get_device(db, device_id)
-    if not db_device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and db_device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to update this device"
-        )
-    
-    return DeviceService.update_device(db, device_id, device)
+    return {"ok": True}
 
+@router.post("/api/devices/{device_id}/test/slot")
+def test_slot(device_id: int, body: TestSlot, request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    row = db.execute(text("SELECT mac FROM devices WHERE id=:id AND owner_user_id=:uid"), {"id": device_id, "uid": user["id"]}).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Device no encontrado")
 
-@router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_device(
-    device_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    db_device = DeviceService.get_device(db, device_id)
-    if not db_device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and db_device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to delete this device"
-        )
-    
-    DeviceService.delete_device(db, device_id)
+    if body.slot < 1 or body.slot > 6:
+        raise HTTPException(status_code=400, detail="slot debe ser 1..6")
 
-
-# MQTT Control endpoints
-@router.post("/{device_id}/reboot")
-def reboot_device(
-    device_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    device = DeviceService.get_device(db, device_id)
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to control this device"
-        )
-    
-    success = mqtt_service.send_reboot(device.device_id)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send reboot command"
-        )
-    
-    return {"message": "Reboot command sent successfully"}
-
-
-@router.post("/{device_id}/ota-update")
-def ota_update(
-    device_id: int,
-    ota_request: OTAUpdateRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    device = DeviceService.get_device(db, device_id)
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    success = mqtt_service.send_ota_update(
-        device.device_id,
-        ota_request.firmware_url,
-        ota_request.version
-    )
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send OTA update command"
-        )
-    
-    return {"message": "OTA update command sent successfully"}
-
-
-@router.post("/{device_id}/wifi")
-def change_wifi(
-    device_id: int,
-    wifi_request: WiFiChangeRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    device = DeviceService.get_device(db, device_id)
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to control this device"
-        )
-    
-    success = mqtt_service.send_wifi_change(
-        device.device_id,
-        wifi_request.ssid,
-        wifi_request.password
-    )
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send WiFi change command"
-        )
-    
-    return {"message": "WiFi change command sent successfully"}
-
-
-@router.post("/{device_id}/led")
-def control_led(
-    device_id: int,
-    led_request: LEDControlRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    device = DeviceService.get_device(db, device_id)
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to control this device"
-        )
-    
-    if led_request.compartment < 0 or led_request.compartment > 5:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Compartment must be between 0 and 5"
-        )
-    
-    success = mqtt_service.send_led_control(
-        device.device_id,
-        led_request.compartment,
-        led_request.color,
-        led_request.brightness
-    )
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send LED control command"
-        )
-    
-    return {"message": "LED control command sent successfully"}
-
-
-@router.post("/{device_id}/status")
-def request_status(
-    device_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    device = DeviceService.get_device(db, device_id)
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-    
-    if not current_user.is_admin and device.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this device"
-        )
-    
-    success = mqtt_service.request_status(device.device_id)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to request device status"
-        )
-    
-    return {"message": "Status request sent successfully"}
+    cmd = {
+        "id": f"cmd_test_{device_id}",
+        "type": "test_slot",
+        "ts": 0,
+        "data": {"slot": body.slot, "color": body.color, "duration_sec": body.duration_sec}
+    }
+    mqtt_service.publish_cmd(row.mac, cmd)
+    return {"ok": True}

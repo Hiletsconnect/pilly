@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Pilly — Admin</title>
+  <link rel="stylesheet" href="/static/css/base.css"/>
+  <link rel="stylesheet" href="/static/css/admin.css"/>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Pilly Admin</div>
+    <div class="actions">
+      <a class="btn ghost" href="/app">Ir a App</a>
+      <button class="btn ghost" id="logoutBtn">Salir</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+      <div class="card">
+        <h2>Dispositivos</h2>
+        <p class="muted">Online, IP, WiFi, firmware.</p>
+        <div id="adminDevices" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Firmware (stable)</h2>
+        <p class="muted">Subí .bin, listá y luego hacés OTA desde un device.</p>
+
+        <form id="fwForm" class="form">
+          <label>Versión (ej: 1.2.3)</label>
+          <input name="version" required />
+          <label>Archivo .bin</label>
+          <input name="file" type="file" accept=".bin,application/octet-stream" required />
+          <button class="btn" type="submit">Subir</button>
+          <p id="fwMsg" class="muted"></p>
+        </form>
+
+        <hr class="sep"/>
+        <h3>Firmwares</h3>
+        <div id="fwList" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

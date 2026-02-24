@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Pilly — App</title>
+  <link rel="stylesheet" href="/static/css/base.css"/>
+  <link rel="stylesheet" href="/static/css/app.css"/>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Pilly</div>
+    <div class="actions">
+      <button class="btn ghost" id="logoutBtn">Salir</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+      <div class="card">
+        <h2>Mis dispositivos</h2>
+        <p class="muted">Estado y acceso rápido.</p>
+        <div id="devicesList" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Horarios</h2>
+        <p class="muted">Por ahora: ver/editar JSON completo (MVP).</p>
+
+        <div class="row">
+          <select id="deviceSelect"></select>
+          <button class="btn" id="loadSchedule">Cargar</button>
+          <button class="btn" id="saveSchedule">Guardar & Sync</button>
+        </div>
+
+        <textarea id="scheduleJson" class="textarea" spellcheck="false"></textarea>
+
+        <hr class="sep"/>
+
+        <h3>Test LED (slot 1..6)</h3>
+        <div class="row">
+          <input id="slot" type="number" min="1" max="6" value="1"/>
+          <input id="color" type="text" value="#00A3FF"/>
+          <input id="dur" type="number" min="1" max="30" value="3"/>
+          <button class="btn" id="testBtn">Probar</button>
+        </div>
+
+        <p id="msg" class="muted"></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
