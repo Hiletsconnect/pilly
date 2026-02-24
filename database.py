@@ -1,29 +1,26 @@
 # database.py
-import os
-import mysql.connector
-from mysql.connector import Error
+import pymysql
+from pymysql.cursors import DictCursor
 from config import settings
 from security import hash_password
 
 def _connect():
-    return mysql.connector.connect(
+    return pymysql.connect(
         host=settings.DB_HOST,
         port=settings.DB_PORT,
         user=settings.DB_USER,
         password=settings.DB_PASSWORD,
         database=settings.DB_NAME,
+        charset="utf8mb4",
+        cursorclass=DictCursor,
         autocommit=True,
     )
 
 def init_db():
-    """
-    - Crea tablas si no existen
-    - Crea admin por primera vez (si DEFAULT_ADMIN_PASS está seteada)
-    """
     conn = _connect()
     cur = conn.cursor()
 
-    # --- tablas (mínimo) ---
+    # --- tablas ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
       id BIGINT NOT NULL AUTO_INCREMENT,
@@ -96,15 +93,13 @@ def init_db():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
-    # --- seed admin seguro ---
+    # --- seed admin ---
     admin_user = settings.DEFAULT_ADMIN_USER.strip()
     admin_pass = (settings.DEFAULT_ADMIN_PASS or "").strip()
 
     if admin_pass:
-        # existe?
         cur.execute("SELECT id FROM users WHERE username=%s LIMIT 1", (admin_user,))
         row = cur.fetchone()
-
         if not row:
             pw_hash = hash_password(admin_pass)
             cur.execute(
