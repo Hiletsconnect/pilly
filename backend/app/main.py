@@ -17,6 +17,9 @@ from app.routes.admin import router as admin_router
 from app.routes.emqx import router as emqx_router
 from app.routes.firmware import router as firmware_router
 
+from app.routes.device_register import router as device_register_router
+from app.routes.admin_devices import router as admin_devices_router
+
 app = FastAPI(title="Pilly Cloud")
 
 BASE = Path(__file__).parent
@@ -40,6 +43,8 @@ app.include_router(devices_router)
 app.include_router(admin_router)
 app.include_router(emqx_router)
 app.include_router(firmware_router)
+app.include_router(device_register_router)
+app.include_router(admin_devices_router)
 
 @app.on_event("startup")
 def startup():

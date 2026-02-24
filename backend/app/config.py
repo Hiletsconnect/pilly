@@ -28,4 +28,5 @@ class Settings:
     # EMQX HTTP Auth endpoints secret (para que no te peguen de afuera)
     EMQX_WEBHOOK_SECRET: str = os.getenv("EMQX_WEBHOOK_SECRET", "emqx-secret")
 
+    ENROLL_KEY = os.getenv("ENROLL_KEY", "dev-enroll-key")
 settings = Settings()
