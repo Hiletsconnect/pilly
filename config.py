@@ -1,33 +1,22 @@
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class Settings:
-    # Dispositivos (ESP32)
-    API_SECRET_KEY: str = os.getenv("API_SECRET_KEY", "cambia-esto-en-produccion")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
-    # Login inicial (se usa solo para bootstrap si users está vacía)
-    ADMIN_USER: str = os.getenv("ADMIN_USER", "admin")
-    ADMIN_PASS: str = os.getenv("ADMIN_PASS", "admin123")
+    SESSION_SECRET: str = os.getenv("SESSION_SECRET", "change-me-now")
 
-    # Sesiones (cookies firmadas)
-    SESSION_SECRET: str = os.getenv("SESSION_SECRET", "cambia-esto-en-produccion-super-secreto")
+    API_SECRET_KEY: str = os.getenv("API_SECRET_KEY", "change-me-now")
 
-    # Telegram
-    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: int = int(os.getenv("DB_PORT") or "3306")
+    DB_USER: str = os.getenv("DB_USER", "root")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_NAME: str = os.getenv("DB_NAME", "railway")
 
-    # OTA storage
+    DATA_DIR: str = os.getenv("DATA_DIR", ".")
     FIRMWARE_DIR: str = os.getenv("FIRMWARE_DIR", "firmware")
 
-    # MySQL
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
-    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
-    DB_USER: str = os.getenv("DB_USER", "root")
-    DB_PASS: str = os.getenv("DB_PASS", "")
-    DB_NAME: str = os.getenv("DB_NAME", "pilly")
-
-    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+    BOOTSTRAP_ADMIN_USER: str = os.getenv("BOOTSTRAP_ADMIN_USER", "admin")
+    BOOTSTRAP_ADMIN_PASS: str = os.getenv("BOOTSTRAP_ADMIN_PASS", "admin12345")
 
 settings = Settings()

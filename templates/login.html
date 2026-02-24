@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Login — Pastillero</title>
+  <style>
+    body{background:#0a0e12;color:#e2eaf4;font-family:system-ui;display:flex;min-height:100vh;align-items:center;justify-content:center}
+    .box{width:360px;background:#111820;border:1px solid #1e2d3d;border-radius:12px;padding:24px}
+    input{width:100%;padding:12px;border-radius:10px;border:1px solid #1e2d3d;background:#0a0e12;color:#e2eaf4;margin-top:10px}
+    button{width:100%;padding:12px;border-radius:10px;border:none;background:#00d4aa;font-weight:800;margin-top:14px;cursor:pointer}
+    .err{color:#ff2d55;margin-top:10px;font-size:.9rem}
+  </style>
+</head>
+<body>
+  <form class="box" method="post" action="/login">
+    <h2>Iniciar sesión</h2>
+    <input name="username" placeholder="Usuario" required>
+    <input name="password" type="password" placeholder="Contraseña" required>
+    {% if error %}<div class="err">{{error}}</div>{% endif %}
+    <button type="submit">Entrar</button>
+  </form>
+</body>
+</html>

@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -370,6 +369,7 @@
     <form method="post" action="/logout" style="display:inline">
       <button class="refresh-btn" type="submit" title="Cerrar sesión">⎋ Salir</button>
     </form>
+    <button class="refresh-btn" onclick="initDb()">🧱 Init DB</button>
   </div>
 </header>
 
@@ -704,6 +704,27 @@ loadAll();
 setInterval(() => {
   loadDevices();
 }, 30000);
+</script>
+
+<script>
+async function initDb() {
+  if (!confirm("¿Inicializar/validar DB ahora? (No borra datos, solo crea/verifica tablas)")) return;
+
+  try {
+    const res = await fetch('/api/admin/db/init', { method: 'POST' });
+    const data = await res.json();
+
+    if (res.ok && data.ok) {
+      toast('✅ DB inicializada/validada');
+      loadAll();
+    } else {
+      toast(data.detail || 'Error inicializando DB', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Error de red inicializando DB', 'error');
+  }
+}
 </script>
 </body>
 </html>
