@@ -51,6 +51,8 @@ def startup():
     admin_user = os.getenv("ADMIN_USER", "admin")
     admin_pass = os.getenv("ADMIN_PASS", "admin1234")
 
+    print(f"Admin user: {admin_user} / {admin_pass} (change with ENV vars ADMIN_USER / ADMIN_PASS)")
+
     with engine.begin() as conn:
         exists = conn.execute(text("SELECT 1 FROM users WHERE username=:u LIMIT 1"), {"u": admin_user}).fetchone()
         if not exists:
