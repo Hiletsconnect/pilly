@@ -198,6 +198,7 @@ async function loadDevices() {   // ✅ FIX: antes decía "async async function"
                         <button class="btn btn-secondary btn-xs" onclick="toggleOTA(${device.id}, ${device.ota_enabled ? 1 : 0})">${device.ota_enabled ? 'OTA: ON' : 'OTA: OFF'}</button>
                         <button class="btn btn-danger btn-xs" onclick="setDeviceState(${device.id}, '${device.admin_state || 'active'}')">${device.admin_state === 'blocked' ? 'Desbloquear' : (device.admin_state === 'suspended' ? 'Activar' : 'Bloquear')}</button>
                         <button class="btn btn-secondary btn-xs" onclick="setTargetFirmware(${device.id})">OTA objetivo</button>
+                        <button onclick="deleteDevice(${device.id})" class="btn btn-danger btn-xs">Eliminar</button>
                     </div>
                     <small style="color: var(--gray-500); display:block; margin-top:4px;">${maskedKey}</small>
                 </td>
@@ -315,6 +316,27 @@ async function deleteRelease(id, version) {
         }
     } catch (error) {
         showToast('Error eliminando firmware', 'error');
+    }
+}
+
+async function deleteDevice(deviceId) {
+    if (!confirm("¿Seguro que querés eliminar este Pilly?")) return;
+
+    try {
+        const response = await fetch(`/api/devices/${deviceId}`, {
+            method: "DELETE"
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert("Pilly eliminado correctamente");
+            loadDevices();
+        } else {
+            alert("Error al eliminar");
+        }
+    } catch (err) {
+        alert("Error de conexión");
     }
 }
 

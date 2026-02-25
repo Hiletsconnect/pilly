@@ -748,6 +748,22 @@ def esp32_get_command(mac_address):
     db.close()
     return jsonify({'command': command})
 
+@app.route('/api/devices/<int:device_id>', methods=['DELETE'])
+def delete_device(device_id):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Primero borramos logs asociados
+    cursor.execute("DELETE FROM alarms WHERE device_id = ?", (device_id,))
+    cursor.execute("DELETE FROM commands WHERE device_id = ?", (device_id,))
+    
+    # Después borramos el dispositivo
+    cursor.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True})
+
 
 if __name__ == '__main__':
     # Create upload folder if it doesn't exist
