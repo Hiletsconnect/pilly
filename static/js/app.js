@@ -19,7 +19,7 @@ function formatUptime(seconds) {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     if (days > 0) return `${days}d ${hours}h`;
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
@@ -43,7 +43,7 @@ function showToast(message, type = 'info') {
         animation: slideIn 0.3s ease;
     `;
     document.body.appendChild(toast);
-    
+
     setTimeout(() => {
         toast.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => toast.remove(), 300);
@@ -60,11 +60,11 @@ async function fetchAPI(url, options = {}) {
                 ...options.headers
             }
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         return await response.json();
     } catch (error) {
         console.error('API Error:', error);
@@ -72,7 +72,6 @@ async function fetchAPI(url, options = {}) {
         throw error;
     }
 }
-
 
 function formatStatus(status) {
     if (!status) return 'desconocido';
@@ -97,7 +96,7 @@ function formatSeverity(sev) {
 async function loadDashboardStats() {
     try {
         const stats = await fetchAPI('/api/dashboard/stats');
-        
+
         document.getElementById('total-devices').textContent = stats.total_devices;
         document.getElementById('online-devices').textContent = stats.online_devices;
         document.getElementById('offline-devices').textContent = stats.offline_devices;
@@ -112,18 +111,18 @@ async function loadRecentDevices() {
     try {
         const devices = await fetchAPI('/api/devices/list');
         const tbody = document.getElementById('recent-devices-tbody');
-        
+
         if (!tbody) return;
-        
+
         tbody.innerHTML = '';
-        
+
         const recentDevices = devices.slice(0, 5);
-        
+
         if (recentDevices.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center">Todavía no hay pastilleros registrados</td></tr>';
             return;
         }
-        
+
         recentDevices.forEach(device => {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -149,15 +148,15 @@ async function loadRecentDevices() {
 }
 
 // Devices Functions
-async async function loadDevices() {
+async function loadDevices() {   // ✅ FIX: antes decía "async async function"
     try {
         const devices = await fetchAPI('/api/devices/list');
         const tbody = document.getElementById('devices-tbody');
-        
+
         if (!tbody) return;
-        
+
         tbody.innerHTML = '';
-        
+
         if (devices.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -171,7 +170,7 @@ async async function loadDevices() {
             `;
             return;
         }
-        
+
         devices.forEach(device => {
             const row = document.createElement('tr');
             const maskedKey = device.api_key ? (device.api_key.slice(0, 6) + '…' + device.api_key.slice(-4)) : '—';
@@ -215,11 +214,11 @@ async function loadReleases() {
     try {
         const releases = await fetchAPI('/api/releases/list');
         const tbody = document.getElementById('releases-tbody');
-        
+
         if (!tbody) return;
-        
+
         tbody.innerHTML = '';
-        
+
         if (releases.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -233,7 +232,7 @@ async function loadReleases() {
             `;
             return;
         }
-        
+
         releases.forEach(release => {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -256,33 +255,33 @@ async function loadReleases() {
 }
 
 function showUploadModal() {
-    document.getElementById('upload-modal').classList.add('active');
+    document.getElementById('upload-modal')?.classList.add('active');
 }
 
 function closeUploadModal() {
-    document.getElementById('upload-modal').classList.remove('active');
-    document.getElementById('upload-form').reset();
+    document.getElementById('upload-modal')?.classList.remove('active');
+    document.getElementById('upload-form')?.reset();
 }
 
 async function uploadRelease(event) {
     event.preventDefault();
-    
+
     const form = event.target;
     const formData = new FormData(form);
-    
+
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> Uploading...';
-    
+
     try {
         const response = await fetch('/api/releases/upload', {
             method: 'POST',
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showToast('Firmware uploaded successfully', 'success');
             closeUploadModal();
@@ -302,12 +301,12 @@ async function deleteRelease(id, version) {
     if (!confirm(`Are you sure you want to delete version ${version}?`)) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/releases/${id}`, {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
             showToast('Firmware eliminado ✅', 'success');
             loadReleases();
@@ -324,11 +323,11 @@ async function loadAlarms() {
     try {
         const alarms = await fetchAPI('/api/alarms/list');
         const tbody = document.getElementById('alarms-tbody');
-        
+
         if (!tbody) return;
-        
+
         tbody.innerHTML = '';
-        
+
         if (alarms.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -342,13 +341,13 @@ async function loadAlarms() {
             `;
             return;
         }
-        
+
         alarms.forEach(alarm => {
             const row = document.createElement('tr');
-            const severityClass = alarm.severity === 'error' ? 'status-offline' : 
-                                 alarm.severity === 'warning' ? 'status-warning' : 
+            const severityClass = alarm.severity === 'error' ? 'status-offline' :
+                                 alarm.severity === 'warning' ? 'status-warning' :
                                  'status-online';
-            
+
             row.innerHTML = `
                 <td>${formatDate(alarm.created_at)}</td>
                 <td>
@@ -374,7 +373,7 @@ async function loadAlarms() {
 // Auto-refresh functionality
 function startAutoRefresh(interval = 30000) {
     const currentPage = window.location.pathname;
-    
+
     setInterval(() => {
         if (currentPage === '/' || currentPage.includes('dashboard')) {
             loadDashboardStats();
@@ -390,7 +389,7 @@ function startAutoRefresh(interval = 30000) {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     const currentPage = window.location.pathname;
-    
+
     if (currentPage === '/' || currentPage.includes('dashboard')) {
         loadDashboardStats();
         loadRecentDevices();
@@ -413,7 +412,6 @@ window.onclick = function(event) {
         closeUploadModal();
     }
 }
-
 
 // Device Actions (Admin)
 async function copyApiKey(apiKey) {
@@ -485,7 +483,6 @@ async function queueRestart(deviceId) {
         showToast('Reinicio en cola ✅', 'success');
     } catch (e) {}
 }
-
 
 // ---- Device provisioning (create from panel) ----
 function openAddDeviceModal() {
