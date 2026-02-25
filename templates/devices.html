@@ -1,14 +1,233 @@
 {% extends "base.html" %}
 
-{% block title %}Pastilleros - Pilly Cloud{% endblock %}
-{% block page_title %}Pastilleros{% endblock %}
-{% block page_description %}Gestioná y monitoreá tus pastilleros inteligentes{% endblock %}
+{% block title %}Pastilleros - Pilly Cloud
+</div>
+
+<!-- Add Device Modal -->
+<div id="add-device-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Provisionar pastillero</h3>
+        </div>
+
+        <form id="add-device-form" onsubmit="createDeviceFromPanel(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-mac">MAC address *</label>
+                    <input type="text" id="add-mac" placeholder="AA:BB:CC:DD:EE:FF" required>
+                    <small style="font-size: 12px; color: var(--gray-500); display:block; margin-top:4px;">
+                        Tip: copiá la MAC tal cual te la imprime el ESP32 / etiqueta
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-name">Nombre</label>
+                    <input type="text" id="add-name" placeholder="Pilly de la abuela / Habitación 2 / etc.">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-fw">Firmware (opcional)</label>
+                    <input type="text" id="add-fw" placeholder="e.g., 1.0.0">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-state">Estado administrativo</label>
+                    <select id="add-state">
+                        <option value="active" selected>Activo</option>
+                        <option value="suspended">Suspendido</option>
+                        <option value="blocked">Bloqueado</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" id="add-ota">
+                        <span>Habilitar OTA para este pastillero</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-target">Versión OTA objetivo (opcional)</label>
+                    <input type="text" id="add-target" placeholder="Si lo dejás vacío, usa stable global">
+                </div>
+
+                <div class="alert alert-info" id="add-device-result" style="display:none; margin-top: 12px;">
+                    <div style="font-weight:600; margin-bottom: 6px;">✅ Pastillero provisionado</div>
+                    <div style="font-size: 13px; color: var(--gray-700);">
+                        Guardá esta API key en el ESP32:
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                        <input type="text" id="add-api-key" readonly style="flex:1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="copyProvisionKey()">Copiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAddDeviceModal()">Cerrar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+{% block page_title %}Pastilleros
+</div>
+
+<!-- Add Device Modal -->
+<div id="add-device-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Provisionar pastillero</h3>
+        </div>
+
+        <form id="add-device-form" onsubmit="createDeviceFromPanel(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-mac">MAC address *</label>
+                    <input type="text" id="add-mac" placeholder="AA:BB:CC:DD:EE:FF" required>
+                    <small style="font-size: 12px; color: var(--gray-500); display:block; margin-top:4px;">
+                        Tip: copiá la MAC tal cual te la imprime el ESP32 / etiqueta
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-name">Nombre</label>
+                    <input type="text" id="add-name" placeholder="Pilly de la abuela / Habitación 2 / etc.">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-fw">Firmware (opcional)</label>
+                    <input type="text" id="add-fw" placeholder="e.g., 1.0.0">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-state">Estado administrativo</label>
+                    <select id="add-state">
+                        <option value="active" selected>Activo</option>
+                        <option value="suspended">Suspendido</option>
+                        <option value="blocked">Bloqueado</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" id="add-ota">
+                        <span>Habilitar OTA para este pastillero</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-target">Versión OTA objetivo (opcional)</label>
+                    <input type="text" id="add-target" placeholder="Si lo dejás vacío, usa stable global">
+                </div>
+
+                <div class="alert alert-info" id="add-device-result" style="display:none; margin-top: 12px;">
+                    <div style="font-weight:600; margin-bottom: 6px;">✅ Pastillero provisionado</div>
+                    <div style="font-size: 13px; color: var(--gray-700);">
+                        Guardá esta API key en el ESP32:
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                        <input type="text" id="add-api-key" readonly style="flex:1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="copyProvisionKey()">Copiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAddDeviceModal()">Cerrar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+{% block page_description %}Gestioná y monitoreá tus pastilleros inteligentes
+</div>
+
+<!-- Add Device Modal -->
+<div id="add-device-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Provisionar pastillero</h3>
+        </div>
+
+        <form id="add-device-form" onsubmit="createDeviceFromPanel(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-mac">MAC address *</label>
+                    <input type="text" id="add-mac" placeholder="AA:BB:CC:DD:EE:FF" required>
+                    <small style="font-size: 12px; color: var(--gray-500); display:block; margin-top:4px;">
+                        Tip: copiá la MAC tal cual te la imprime el ESP32 / etiqueta
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-name">Nombre</label>
+                    <input type="text" id="add-name" placeholder="Pilly de la abuela / Habitación 2 / etc.">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-fw">Firmware (opcional)</label>
+                    <input type="text" id="add-fw" placeholder="e.g., 1.0.0">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-state">Estado administrativo</label>
+                    <select id="add-state">
+                        <option value="active" selected>Activo</option>
+                        <option value="suspended">Suspendido</option>
+                        <option value="blocked">Bloqueado</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" id="add-ota">
+                        <span>Habilitar OTA para este pastillero</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-target">Versión OTA objetivo (opcional)</label>
+                    <input type="text" id="add-target" placeholder="Si lo dejás vacío, usa stable global">
+                </div>
+
+                <div class="alert alert-info" id="add-device-result" style="display:none; margin-top: 12px;">
+                    <div style="font-weight:600; margin-bottom: 6px;">✅ Pastillero provisionado</div>
+                    <div style="font-size: 13px; color: var(--gray-700);">
+                        Guardá esta API key en el ESP32:
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                        <input type="text" id="add-api-key" readonly style="flex:1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="copyProvisionKey()">Copiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAddDeviceModal()">Cerrar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Todos los pastilleros</h3>
         <div class="flex gap-2">
+            <button class="btn btn-primary btn-sm" onclick="openAddDeviceModal()">
+                <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Agregar pastillero
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="loadDevices()">
                 <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -114,4 +333,75 @@
         </div>
     </div>
 </div>
+
+</div>
+
+<!-- Add Device Modal -->
+<div id="add-device-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Provisionar pastillero</h3>
+        </div>
+
+        <form id="add-device-form" onsubmit="createDeviceFromPanel(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-mac">MAC address *</label>
+                    <input type="text" id="add-mac" placeholder="AA:BB:CC:DD:EE:FF" required>
+                    <small style="font-size: 12px; color: var(--gray-500); display:block; margin-top:4px;">
+                        Tip: copiá la MAC tal cual te la imprime el ESP32 / etiqueta
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-name">Nombre</label>
+                    <input type="text" id="add-name" placeholder="Pilly de la abuela / Habitación 2 / etc.">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-fw">Firmware (opcional)</label>
+                    <input type="text" id="add-fw" placeholder="e.g., 1.0.0">
+                </div>
+
+                <div class="form-group">
+                    <label for="add-state">Estado administrativo</label>
+                    <select id="add-state">
+                        <option value="active" selected>Activo</option>
+                        <option value="suspended">Suspendido</option>
+                        <option value="blocked">Bloqueado</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" id="add-ota">
+                        <span>Habilitar OTA para este pastillero</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="add-target">Versión OTA objetivo (opcional)</label>
+                    <input type="text" id="add-target" placeholder="Si lo dejás vacío, usa stable global">
+                </div>
+
+                <div class="alert alert-info" id="add-device-result" style="display:none; margin-top: 12px;">
+                    <div style="font-weight:600; margin-bottom: 6px;">✅ Pastillero provisionado</div>
+                    <div style="font-size: 13px; color: var(--gray-700);">
+                        Guardá esta API key en el ESP32:
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                        <input type="text" id="add-api-key" readonly style="flex:1;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="copyProvisionKey()">Copiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAddDeviceModal()">Cerrar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}

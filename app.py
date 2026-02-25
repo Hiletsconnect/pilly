@@ -7,6 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import sqlite3
 import json
+import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -240,7 +241,61 @@ def devices_list():
     ''').fetchall()
     db.close()
     
-    return jsonify([dict(device) for device in devices])
+    return jsonify([dict(device) for device in
+
+@app.route('/api/devices', methods=['POST'])
+@login_required
+def create_device():
+    """Create (provision) a new pastillero from the admin panel.
+    The ESP32 will NOT need to call /api/esp32/register; it can start sending heartbeat using (mac_address + api_key).
+    """
+    data = request.json or {}
+    mac = (data.get('mac_address') or '').strip().lower()
+    if not mac:
+        return jsonify({'error': 'mac_address required'}), 400
+
+    # basic MAC sanity (allow ":" or "-")
+    mac_clean = mac.replace('-', ':')
+    if not re.match(r'^([0-9a-f]{2}:){5}[0-9a-f]{2}$', mac_clean):
+        return jsonify({'error': 'Invalid MAC format. Use AA:BB:CC:DD:EE:FF'}), 400
+
+    name = (data.get('device_name') or '').strip()
+    firmware_version = (data.get('firmware_version') or '').strip()
+    admin_state = (data.get('admin_state') or 'active').strip().lower()
+    if admin_state not in ('active', 'suspended', 'blocked'):
+        admin_state = 'active'
+
+    ota_enabled = 1 if str(data.get('ota_enabled', 0)).lower() in ('1', 'true', 'yes', 'on') else 0
+    ota_target_version = (data.get('ota_target_version') or '').strip() or None
+
+    api_key = generate_api_key()
+
+    db = get_db()
+    exists = db.execute('SELECT id FROM devices WHERE mac_address = ?', (mac_clean,)).fetchone()
+    if exists:
+        db.close()
+        return jsonify({'error': 'Device already exists'}), 409
+
+    db.execute('''
+        INSERT INTO devices (
+            mac_address, device_name, firmware_version,
+            status, api_key, admin_state, ota_enabled, ota_target_version,
+            created_at
+        ) VALUES (?, ?, ?, 'offline', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ''', (mac_clean, name, firmware_version, api_key, admin_state, ota_enabled, ota_target_version))
+
+    device_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
+
+    db.execute('''
+        INSERT INTO alarms (device_id, alarm_type, message, severity)
+        VALUES (?, 'device_provisioned', 'Pastillero provisionado desde el panel', 'info')
+    ''', (device_id,))
+
+    db.commit()
+    db.close()
+
+    return jsonify({'success': True, 'device_id': device_id, 'api_key': api_key})
+ devices])
 
 @app.route('/api/devices/<int:device_id>')
 @login_required

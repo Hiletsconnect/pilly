@@ -149,7 +149,7 @@ async function loadRecentDevices() {
 }
 
 // Devices Functions
-async function loadDevices() {
+async async function loadDevices() {
     try {
         const devices = await fetchAPI('/api/devices/list');
         const tbody = document.getElementById('devices-tbody');
@@ -484,4 +484,69 @@ async function queueRestart(deviceId) {
         });
         showToast('Reinicio en cola ✅', 'success');
     } catch (e) {}
+}
+
+
+// ---- Device provisioning (create from panel) ----
+function openAddDeviceModal() {
+    const modal = document.getElementById('add-device-modal');
+    const form = document.getElementById('add-device-form');
+    const result = document.getElementById('add-device-result');
+    if (form) form.reset();
+    if (result) result.style.display = 'none';
+    if (modal) modal.classList.add('active');
+}
+
+function closeAddDeviceModal() {
+    const modal = document.getElementById('add-device-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function createDeviceFromPanel(event) {
+    event.preventDefault();
+
+    const mac = document.getElementById('add-mac')?.value?.trim();
+    const name = document.getElementById('add-name')?.value?.trim();
+    const fw = document.getElementById('add-fw')?.value?.trim();
+    const state = document.getElementById('add-state')?.value || 'active';
+    const otaEnabled = document.getElementById('add-ota')?.checked ? 1 : 0;
+    const target = document.getElementById('add-target')?.value?.trim();
+
+    if (!mac) {
+        alert('MAC requerida');
+        return;
+    }
+
+    try {
+        const res = await fetchAPI('/api/devices', {
+            method: 'POST',
+            body: JSON.stringify({
+                mac_address: mac,
+                device_name: name,
+                firmware_version: fw,
+                admin_state: state,
+                ota_enabled: otaEnabled,
+                ota_target_version: target
+            })
+        });
+
+        const result = document.getElementById('add-device-result');
+        const keyInput = document.getElementById('add-api-key');
+        if (keyInput) keyInput.value = res.api_key || '';
+        if (result) result.style.display = 'block';
+
+        // refresh table
+        await loadDevices();
+    } catch (err) {
+        console.error(err);
+        alert('No pude crear el pastillero. Revisá la MAC y que no exista ya.');
+    }
+}
+
+function copyProvisionKey() {
+    const keyInput = document.getElementById('add-api-key');
+    if (!keyInput) return;
+    keyInput.select();
+    keyInput.setSelectionRange(0, 99999);
+    document.execCommand('copy');
 }
