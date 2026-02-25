@@ -38,17 +38,30 @@ def generate_api_key():
 def get_device_by_mac(db, mac_address):
     return db.execute('SELECT * FROM devices WHERE mac_address = ?', (mac_address,)).fetchone()
 
-def verify_device_request(db, mac_address, api_key):
-    device = get_device_by_mac(db, mac_address)
-    if not device:
-        return None, (jsonify({'error': 'Unknown device'}), 404)
-    if not device.get('api_key') or device['api_key'] != api_key:
-        return None, (jsonify({'error': 'Invalid api key'}), 401)
-    admin_state = (device.get('admin_state') or 'active').lower()
-    if admin_state == 'blocked':
-        return None, (jsonify({'error': 'Device blocked'}), 403)
-    return device, None
+def verify_device_request(db, mac, api_key):
+    if not mac or not api_key:
+        return None, ("missing_fields", 400)
 
+    cur = db.cursor()
+    cur.execute("SELECT * FROM devices WHERE mac = ? LIMIT 1", (mac,))
+    row = cur.fetchone()
+
+    if row is None:
+        return None, ("device_not_found", 404)
+
+    device = dict(row)  # ✅ convierte sqlite3.Row a dict
+
+    if not device.get("api_key"):
+        return None, ("device_no_api_key", 401)
+
+    if device["api_key"] != api_key:
+        return None, ("invalid_api_key", 401)
+
+    # opcional: bloqueado / no aprobado
+    if device.get("status") == "blocked":
+        return None, ("device_blocked", 403)
+
+    return device, None
 def init_db():
     with app.app_context():
         db = get_db()
