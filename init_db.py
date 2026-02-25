@@ -8,7 +8,7 @@ import os
 import sqlite3
 from werkzeug.security import generate_password_hash
 
-DATABASE = 'esp32_management.db'
+DATABASE = 'database/esp32_management.db'
 
 def init_database():
     # Remove existing database if it exists
