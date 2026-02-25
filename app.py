@@ -13,7 +13,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['UPLOAD_FOLDER'] = 'uploads/firmwares'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['DATABASE'] = 'esp32_management.db'
+app.config['DATABASE'] = 'database/esp32_management.db'
 
 ALLOWED_EXTENSIONS = {'bin'}
 
