@@ -357,3 +357,18 @@ For issues, questions, or suggestions:
 ---
 
 **Made with ❤️ for the ESP32 community**
+
+
+## API key por pastillero (nuevo)
+
+Al registrar un pastillero (`POST /api/esp32/register`) el servidor devuelve `api_key`. Guardala en el ESP32 y enviála en cada request como header:
+
+- `X-API-Key: <api_key>`
+
+Endpoints que la requieren:
+- `POST /api/esp32/heartbeat`
+- `POST /api/esp32/check_update`
+- `POST /api/esp32/alarm`
+- `GET /api/esp32/command/<mac_address>` (opcional)
+
+Además, desde el dashboard podés bloquear/suspender, habilitar OTA por dispositivo, setear versión objetivo y mandar reinicio remoto.

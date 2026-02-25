@@ -24,6 +24,30 @@ def get_db():
     db.row_factory = sqlite3.Row
     return db
 
+
+def ensure_column(db, table, column, coltype_sql):
+    """Add column if it does not exist (SQLite)."""
+    cols = [row['name'] for row in db.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype_sql}")
+
+def generate_api_key():
+    return secrets.token_urlsafe(32)
+
+def get_device_by_mac(db, mac_address):
+    return db.execute('SELECT * FROM devices WHERE mac_address = ?', (mac_address,)).fetchone()
+
+def verify_device_request(db, mac_address, api_key):
+    device = get_device_by_mac(db, mac_address)
+    if not device:
+        return None, (jsonify({'error': 'Unknown device'}), 404)
+    if not device.get('api_key') or device['api_key'] != api_key:
+        return None, (jsonify({'error': 'Invalid api key'}), 401)
+    admin_state = (device.get('admin_state') or 'active').lower()
+    if admin_state == 'blocked':
+        return None, (jsonify({'error': 'Device blocked'}), 403)
+    return device, None
+
 def init_db():
     with app.app_context():
         db = get_db()
@@ -92,6 +116,32 @@ def init_db():
             )
         ''')
         
+
+        # ---- Schema migrations (safe to run multiple times) ----
+        ensure_column(db, 'devices', 'api_key', "TEXT")
+        ensure_column(db, 'devices', 'admin_state', "TEXT DEFAULT 'active'")
+        ensure_column(db, 'devices', 'ota_enabled', "INTEGER DEFAULT 0")
+        ensure_column(db, 'devices', 'ota_target_version', "TEXT")
+        ensure_column(db, 'firmwares', 'is_stable', "INTEGER DEFAULT 0")
+
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS device_commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id INTEGER NOT NULL,
+                command TEXT NOT NULL,
+                payload TEXT,
+                status TEXT DEFAULT 'pending',
+                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                sent_at TIMESTAMP,
+                ack_at TIMESTAMP,
+                FOREIGN KEY (device_id) REFERENCES devices (id)
+            )
+        ''')
+
+        # Ensure existing devices have API keys
+        devices_without_key = db.execute("SELECT id FROM devices WHERE api_key IS NULL OR api_key = ''").fetchall()
+        for row in devices_without_key:
+            db.execute("UPDATE devices SET api_key = ? WHERE id = ?", (generate_api_key(), row['id']))
         # Check if default user exists
         cursor = db.execute('SELECT * FROM users WHERE username = ?', ('admin',))
         if not cursor.fetchone():
@@ -182,8 +232,9 @@ def dashboard_stats():
 def devices_list():
     db = get_db()
     devices = db.execute('''
-        SELECT id, mac_address, device_name, ip_address, ssid, 
-               firmware_version, last_seen, status, uptime, free_heap
+        SELECT id, mac_address, device_name, ip_address, ssid,
+               firmware_version, last_seen, status, uptime, free_heap,
+               api_key, admin_state, ota_enabled, ota_target_version
         FROM devices 
         ORDER BY last_seen DESC
     ''').fetchall()
@@ -201,6 +252,99 @@ def device_detail(device_id):
     if device:
         return jsonify(dict(device))
     return jsonify({'error': 'Device not found'}), 404
+
+
+@app.route('/api/devices/<int:device_id>/set_state', methods=['POST'])
+@login_required
+def set_device_state(device_id):
+    data = request.json or {}
+    state = (data.get('state') or '').strip().lower()
+    if state not in ['active', 'suspended', 'blocked']:
+        return jsonify({'error': 'Invalid state'}), 400
+
+    db = get_db()
+    device = db.execute('SELECT id FROM devices WHERE id = ?', (device_id,)).fetchone()
+    if not device:
+        db.close()
+        return jsonify({'error': 'Device not found'}), 404
+
+    status = 'offline' if state == 'active' else state
+    db.execute('UPDATE devices SET admin_state = ?, status = ? WHERE id = ?', (state, status, device_id))
+    db.commit()
+    db.close()
+    return jsonify({'success': True, 'state': state})
+
+@app.route('/api/devices/<int:device_id>/rotate_key', methods=['POST'])
+@login_required
+def rotate_device_key(device_id):
+    db = get_db()
+    device = db.execute('SELECT id FROM devices WHERE id = ?', (device_id,)).fetchone()
+    if not device:
+        db.close()
+        return jsonify({'error': 'Device not found'}), 404
+
+    new_key = generate_api_key()
+    db.execute('UPDATE devices SET api_key = ? WHERE id = ?', (new_key, device_id))
+    db.commit()
+    db.close()
+    return jsonify({'success': True, 'api_key': new_key})
+
+@app.route('/api/devices/<int:device_id>/ota', methods=['POST'])
+@login_required
+def set_device_ota(device_id):
+    data = request.json or {}
+    ota_enabled = data.get('ota_enabled', None)
+    ota_target_version = data.get('ota_target_version', None)
+
+    db = get_db()
+    device = db.execute('SELECT id FROM devices WHERE id = ?', (device_id,)).fetchone()
+    if not device:
+        db.close()
+        return jsonify({'error': 'Device not found'}), 404
+
+    if ota_enabled is not None:
+        db.execute('UPDATE devices SET ota_enabled = ? WHERE id = ?', (1 if int(ota_enabled) else 0, device_id))
+    if ota_target_version is not None:
+        ver = ota_target_version.strip()
+        if ver == '':
+            db.execute('UPDATE devices SET ota_target_version = NULL WHERE id = ?', (device_id,))
+        else:
+            db.execute('UPDATE devices SET ota_target_version = ? WHERE id = ?', (ver, device_id))
+
+    db.commit()
+    db.close()
+    return jsonify({'success': True})
+
+@app.route('/api/devices/<int:device_id>/command', methods=['POST'])
+@login_required
+def queue_device_command(device_id):
+    data = request.json or {}
+    command = (data.get('command') or '').strip().lower()
+    if command not in ['restart']:
+        return jsonify({'error': 'Unsupported command'}), 400
+
+    payload = data.get('payload')
+    payload_json = json.dumps(payload) if payload is not None else None
+
+    db = get_db()
+    device = db.execute('SELECT id FROM devices WHERE id = ?', (device_id,)).fetchone()
+    if not device:
+        db.close()
+        return jsonify({'error': 'Device not found'}), 404
+
+    db.execute('''
+        INSERT INTO device_commands (device_id, command, payload, status)
+        VALUES (?, ?, ?, 'pending')
+    ''', (device_id, command, payload_json))
+
+    db.execute('''
+        INSERT INTO logs (device_id, log_type, message)
+        VALUES (?, 'command', ?)
+    ''', (device_id, f'Queued command: {command}'))
+
+    db.commit()
+    db.close()
+    return jsonify({'success': True})
 
 @app.route('/api/releases/list')
 @login_required
@@ -313,6 +457,11 @@ def esp32_register():
     # Check if device exists
     device = db.execute('SELECT * FROM devices WHERE mac_address = ?', 
                        (data['mac_address'],)).fetchone()
+    # If blocked, deny registration/updates
+    if device and (device.get('admin_state') == 'blocked'):
+        db.close()
+        return jsonify({'error': 'Device blocked'}), 403
+
     
     if device:
         # Update existing device
@@ -326,15 +475,17 @@ def esp32_register():
               data.get('device_name', ''), data.get('uptime', 0), 
               data.get('free_heap', 0), data['mac_address']))
         device_id = device['id']
+        if not device.get('api_key'):
+            db.execute('UPDATE devices SET api_key = ? WHERE id = ?', (generate_api_key(), device_id))
     else:
         # Create new device
         db.execute('''
             INSERT INTO devices (mac_address, ip_address, ssid, firmware_version, 
-                               device_name, last_seen, status, uptime, free_heap)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'online', ?, ?)
+                               device_name, last_seen, status, uptime, free_heap, api_key, admin_state, ota_enabled)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'online', ?, ?, ?, 'active', 0)
         ''', (data['mac_address'], data['ip_address'], data.get('ssid', ''),
               data['firmware_version'], data.get('device_name', ''),
-              data.get('uptime', 0), data.get('free_heap', 0)))
+              data.get('uptime', 0), data.get('free_heap', 0), generate_api_key()))
         device_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
         
         # Log new device
@@ -346,57 +497,123 @@ def esp32_register():
     db.commit()
     db.close()
     
-    return jsonify({'success': True, 'device_id': device_id})
+    device_row = get_db().execute('SELECT api_key FROM devices WHERE id = ?', (device_id,)).fetchone()
+    return jsonify({'success': True, 'device_id': device_id, 'api_key': device_row['api_key'] if device_row else None})
 
 @app.route('/api/esp32/heartbeat', methods=['POST'])
 def esp32_heartbeat():
-    data = request.json
-    
-    if 'mac_address' not in data:
+    data = request.json or {}
+    mac = data.get('mac_address')
+    if not mac:
         return jsonify({'error': 'MAC address required'}), 400
-    
+
+    api_key = request.headers.get('X-API-Key') or data.get('api_key')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+
     db = get_db()
+    device, err = verify_device_request(db, mac, api_key)
+    if err:
+        db.close()
+        return err
+
+    admin_state = (device.get('admin_state') or 'active').lower()
+    status = 'online' if admin_state == 'active' else 'suspended'
+
     db.execute('''
-        UPDATE devices 
-        SET last_seen = CURRENT_TIMESTAMP, status = 'online',
-            uptime = ?, free_heap = ?
+        UPDATE devices
+        SET last_seen = CURRENT_TIMESTAMP,
+            status = ?,
+            uptime = ?,
+            free_heap = ?,
+            ip_address = COALESCE(?, ip_address),
+            ssid = COALESCE(?, ssid),
+            firmware_version = COALESCE(?, firmware_version)
         WHERE mac_address = ?
-    ''', (data.get('uptime', 0), data.get('free_heap', 0), data['mac_address']))
+    ''', (status, data.get('uptime', 0), data.get('free_heap', 0),
+          data.get('ip_address'), data.get('ssid'), data.get('firmware_version'), mac))
+
+    cmd_row = db.execute('''
+        SELECT id, command, payload FROM device_commands
+        WHERE device_id = ? AND status = 'pending'
+        ORDER BY requested_at ASC
+        LIMIT 1
+    ''', (device['id'],)).fetchone()
+
+    command = None
+    if cmd_row and admin_state == 'active':
+        db.execute("UPDATE device_commands SET status='sent', sent_at=CURRENT_TIMESTAMP WHERE id=?", (cmd_row['id'],))
+        payload = None
+        if cmd_row['payload']:
+            try:
+                payload = json.loads(cmd_row['payload'])
+            except Exception:
+                payload = {'raw': cmd_row['payload']}
+        command = {'command': cmd_row['command'], 'payload': payload}
+
     db.commit()
     db.close()
-    
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'command': command})
+
 
 @app.route('/api/esp32/check_update', methods=['POST'])
 def esp32_check_update():
-    data = request.json
-    
-    if 'mac_address' not in data or 'current_version' not in data:
+    data = request.json or {}
+    mac = data.get('mac_address')
+    current = data.get('current_version')
+    if not mac or current is None:
         return jsonify({'error': 'MAC address and current version required'}), 400
-    
+
+    api_key = request.headers.get('X-API-Key') or data.get('api_key')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+
     db = get_db()
-    
-    # Get latest firmware
-    latest_firmware = db.execute('''
-        SELECT * FROM firmwares 
-        ORDER BY uploaded_at DESC 
-        LIMIT 1
-    ''').fetchone()
-    
+    device, err = verify_device_request(db, mac, api_key)
+    if err:
+        db.close()
+        return err
+
+    admin_state = (device.get('admin_state') or 'active').lower()
+    if admin_state != 'active':
+        db.close()
+        return jsonify({'update_available': False, 'reason': 'suspended'})
+
+    ota_enabled = int(device.get('ota_enabled') or 0)
+    target_version = (device.get('ota_target_version') or '').strip()
+
+    firmware = None
+    if target_version:
+        firmware = db.execute('SELECT * FROM firmwares WHERE version = ? LIMIT 1', (target_version,)).fetchone()
+        if not firmware:
+            db.close()
+            return jsonify({'update_available': False, 'reason': 'target_not_found'})
+    else:
+        if not ota_enabled:
+            db.close()
+            return jsonify({'update_available': False, 'reason': 'ota_disabled'})
+        firmware = db.execute('''
+            SELECT * FROM firmwares
+            WHERE is_stable = 1
+            ORDER BY uploaded_at DESC
+            LIMIT 1
+        ''').fetchone()
+
     db.close()
-    
-    if not latest_firmware:
+
+    if not firmware:
         return jsonify({'update_available': False})
-    
-    if latest_firmware['version'] != data['current_version']:
+
+    if firmware['version'] != current:
         return jsonify({
             'update_available': True,
-            'version': latest_firmware['version'],
-            'url': url_for('download_firmware', version=latest_firmware['version'], _external=True),
-            'size': latest_firmware['file_size']
+            'version': firmware['version'],
+            'url': url_for('download_firmware', version=firmware['version'], _external=True),
+            'size': firmware.get('file_size')
         })
-    
+
     return jsonify({'update_available': False})
+
 
 @app.route('/api/esp32/firmware/<version>')
 def download_firmware(version):
@@ -411,40 +628,71 @@ def download_firmware(version):
 
 @app.route('/api/esp32/alarm', methods=['POST'])
 def esp32_alarm():
-    data = request.json
-    
-    required_fields = ['mac_address', 'alarm_type', 'message']
-    if not all(field in data for field in required_fields):
-        return jsonify({'error': 'Missing required fields'}), 400
-    
+    data = request.json or {}
+    mac = data.get('mac_address')
+    if not mac or 'alarm_type' not in data:
+        return jsonify({'error': 'MAC address and alarm_type required'}), 400
+
+    api_key = request.headers.get('X-API-Key') or data.get('api_key')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+
     db = get_db()
-    
-    # Get device ID
-    device = db.execute('SELECT id FROM devices WHERE mac_address = ?', 
-                       (data['mac_address'],)).fetchone()
-    
-    if device:
-        db.execute('''
-            INSERT INTO alarms (device_id, alarm_type, message, severity)
-            VALUES (?, ?, ?, ?)
-        ''', (device['id'], data['alarm_type'], data['message'], 
-              data.get('severity', 'info')))
-        db.commit()
-    
+    device, err = verify_device_request(db, mac, api_key)
+    if err:
+        db.close()
+        return err
+
+    db.execute('''
+        INSERT INTO alarms (device_id, alarm_type, message, severity)
+        VALUES (?, ?, ?, ?)
+    ''', (device['id'], data['alarm_type'], data.get('message', ''),
+          data.get('severity', 'info')))
+
+    db.commit()
     db.close()
-    
     return jsonify({'success': True})
+
 
 @app.route('/api/esp32/command/<mac_address>', methods=['GET'])
 def esp32_get_command(mac_address):
-    """ESP32 polls this endpoint to check for pending commands"""
-    # This is a simple implementation - in production you might use Redis or WebSockets
-    # For now, we'll return a command if one was recently requested
-    
-    # Check if there's a pending restart command (stored in session or temp file)
-    # This is a simplified version - you'd want to implement proper command queue
-    
-    return jsonify({'command': None})
+    """ESP32 polls this endpoint to check for pending commands (fallback)."""
+    api_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 401
+
+    db = get_db()
+    device, err = verify_device_request(db, mac_address, api_key)
+    if err:
+        db.close()
+        return err
+
+    admin_state = (device.get('admin_state') or 'active').lower()
+    if admin_state != 'active':
+        db.close()
+        return jsonify({'command': None})
+
+    cmd_row = db.execute('''
+        SELECT id, command, payload FROM device_commands
+        WHERE device_id = ? AND status = 'pending'
+        ORDER BY requested_at ASC
+        LIMIT 1
+    ''', (device['id'],)).fetchone()
+
+    command = None
+    if cmd_row:
+        db.execute("UPDATE device_commands SET status='sent', sent_at=CURRENT_TIMESTAMP WHERE id=?", (cmd_row['id'],))
+        payload = None
+        if cmd_row['payload']:
+            try:
+                payload = json.loads(cmd_row['payload'])
+            except Exception:
+                payload = {'raw': cmd_row['payload']}
+        command = {'id': cmd_row['id'], 'command': cmd_row['command'], 'payload': payload}
+        db.commit()
+    db.close()
+    return jsonify({'command': command})
+
 
 if __name__ == '__main__':
     # Create upload folder if it doesn't exist

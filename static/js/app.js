@@ -161,7 +161,7 @@ async function loadDevices() {
         if (devices.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center">
+                    <td colspan="9" class="text-center">
                         <div class="empty-state">
                             <div class="empty-state-title">No hay pastilleros todavía</div>
                             <div class="empty-state-text">Van a aparecer acá cuando se conecten al sistema</div>
@@ -174,6 +174,7 @@ async function loadDevices() {
         
         devices.forEach(device => {
             const row = document.createElement('tr');
+            const maskedKey = device.api_key ? (device.api_key.slice(0, 6) + '…' + device.api_key.slice(-4)) : '—';
             row.innerHTML = `
                 <td>
                     <strong>${device.device_name || 'Pastillero sin nombre'}</strong><br>
@@ -191,6 +192,16 @@ async function loadDevices() {
                 <td>${formatUptime(device.uptime || 0)}</td>
                 <td>${formatBytes(device.free_heap || 0)}</td>
                 <td>${formatDate(device.last_seen)}</td>
+                <td>
+                    <div class="flex gap-1" style="flex-wrap: wrap;">
+                        <button class="btn btn-secondary btn-xs" onclick="copyApiKey('${device.api_key || ''}')">API key</button>
+                        <button class="btn btn-secondary btn-xs" onclick="queueRestart(${device.id})">Reiniciar</button>
+                        <button class="btn btn-secondary btn-xs" onclick="toggleOTA(${device.id}, ${device.ota_enabled ? 1 : 0})">${device.ota_enabled ? 'OTA: ON' : 'OTA: OFF'}</button>
+                        <button class="btn btn-danger btn-xs" onclick="setDeviceState(${device.id}, '${device.admin_state || 'active'}')">${device.admin_state === 'blocked' ? 'Desbloquear' : (device.admin_state === 'suspended' ? 'Activar' : 'Bloquear')}</button>
+                        <button class="btn btn-secondary btn-xs" onclick="setTargetFirmware(${device.id})">OTA objetivo</button>
+                    </div>
+                    <small style="color: var(--gray-500); display:block; margin-top:4px;">${maskedKey}</small>
+                </td>
             `;
             tbody.appendChild(row);
         });
@@ -401,4 +412,76 @@ window.onclick = function(event) {
     if (event.target === modal) {
         closeUploadModal();
     }
+}
+
+
+// Device Actions (Admin)
+async function copyApiKey(apiKey) {
+    if (!apiKey) {
+        showToast('Este pastillero todavía no tiene API key', 'error');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(apiKey);
+        showToast('API key copiada ✅', 'success');
+    } catch (e) {
+        prompt('Copiá la API key:', apiKey);
+    }
+}
+
+async function setDeviceState(deviceId, currentState) {
+    const next = prompt('Estado del pastillero (active | suspended | blocked):', currentState || 'active');
+    if (!next) return;
+    const state = next.trim().toLowerCase();
+    if (!['active','suspended','blocked'].includes(state)) {
+        showToast('Estado inválido', 'error');
+        return;
+    }
+    try {
+        await fetchAPI(`/api/devices/${deviceId}/set_state`, {
+            method: 'POST',
+            body: JSON.stringify({ state })
+        });
+        showToast('Estado actualizado', 'success');
+        loadDevices();
+    } catch (e) {}
+}
+
+async function toggleOTA(deviceId, currentEnabled) {
+    const enable = currentEnabled ? 0 : 1;
+    const ok = confirm(enable ? '¿Habilitar OTA para este pastillero?' : '¿Deshabilitar OTA para este pastillero?');
+    if (!ok) return;
+    try {
+        await fetchAPI(`/api/devices/${deviceId}/ota`, {
+            method: 'POST',
+            body: JSON.stringify({ ota_enabled: enable })
+        });
+        showToast('OTA actualizado', 'success');
+        loadDevices();
+    } catch (e) {}
+}
+
+async function setTargetFirmware(deviceId) {
+    const version = prompt('Versión objetivo (dejá vacío para quitar objetivo):', '');
+    if (version === null) return;
+    try {
+        await fetchAPI(`/api/devices/${deviceId}/ota`, {
+            method: 'POST',
+            body: JSON.stringify({ ota_target_version: version.trim() })
+        });
+        showToast('Objetivo OTA actualizado', 'success');
+        loadDevices();
+    } catch (e) {}
+}
+
+async function queueRestart(deviceId) {
+    const ok = confirm('¿Reiniciar remotamente este pastillero en el próximo heartbeat?');
+    if (!ok) return;
+    try {
+        await fetchAPI(`/api/devices/${deviceId}/command`, {
+            method: 'POST',
+            body: JSON.stringify({ command: 'restart' })
+        });
+        showToast('Reinicio en cola ✅', 'success');
+    } catch (e) {}
 }

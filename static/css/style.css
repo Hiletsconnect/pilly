@@ -644,3 +644,6 @@ textarea {
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .gap-2 { gap: 16px; }
 .hidden { display: none; }
+
+/* Extra small buttons for device actions */
+.btn-xs { padding: 6px 10px; font-size: 12px; border-radius: 10px; }
