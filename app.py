@@ -241,7 +241,7 @@ def devices_list():
     ''').fetchall()
     db.close()
     
-    return jsonify([dict(device) for device in
+    return jsonify([dict(device) for device in devices])
 
 @app.route('/api/devices', methods=['POST'])
 @login_required
@@ -295,7 +295,7 @@ def create_device():
     db.close()
 
     return jsonify({'success': True, 'device_id': device_id, 'api_key': api_key})
- devices])
+
 
 @app.route('/api/devices/<int:device_id>')
 @login_required
