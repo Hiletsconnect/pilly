@@ -43,7 +43,7 @@ def verify_device_request(db, mac, api_key):
         return None, ("missing_fields", 400)
 
     cur = db.cursor()
-    cur.execute("SELECT * FROM devices WHERE mac = ? LIMIT 1", (mac,))
+    cur.execute("SELECT * FROM devices WHERE mac_address = ? LIMIT 1", (mac,))
     row = cur.fetchone()
 
     if row is None:
